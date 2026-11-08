@@ -20,6 +20,7 @@
 #import "FVApplication.h"
 #import "FVWindow.h"
 #import "FVThumbnails.h"
+#import "FVDesktop.h"
 
 static void
 FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArray *keys)
@@ -38,9 +39,37 @@ FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArra
 
 @implementation FVApplication
 
+- (void)applicationWillFinishLaunching:(NSNotification *)note
+{
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  [defaults synchronize];
+  NSMutableDictionary *domain = [NSMutableDictionary dictionaryWithDictionary:
+      [defaults persistentDomainForName:NSGlobalDomain]];
+  [domain setObject:@"FileViewer" forKey:@"GSWorkspaceApplication"];
+  [defaults setPersistentDomain:domain forName:NSGlobalDomain];
+  [defaults synchronize];
+}
+
+- (void)applicationWillTerminate:(NSNotification *)note
+{
+  [desktop setEnabled:NO];
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  [defaults synchronize];
+  NSMutableDictionary *domain = [NSMutableDictionary dictionaryWithDictionary:
+      [defaults persistentDomainForName:NSGlobalDomain]];
+  if ([[domain objectForKey:@"GSWorkspaceApplication"] isEqual:@"FileViewer"])
+    {
+      [domain removeObjectForKey:@"GSWorkspaceApplication"];
+      [defaults setPersistentDomain:domain forName:NSGlobalDomain];
+      [defaults synchronize];
+    }
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)note
 {
   windows = [[NSMutableArray alloc] init];
+  desktop = [[FVDesktop alloc] initWithDirectory:[NSHomeDirectory () stringByAppendingPathComponent:@"Desktop"]];
+  [desktop setEnabled:[[NSUserDefaults standardUserDefaults] boolForKey:@"ShowDesktopIcons"]];
   NSImage *icon = [NSImage imageNamed:@"FileViewer.png"];
   if (icon)
     [NSApp setApplicationIconImage:icon];
@@ -82,6 +111,8 @@ FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArra
           [NSArray arrayWithObjects:@"back:", @"forward:", @"parent:", @"home:", @"go:",
                                     @"addFavorite:", @"removeFavorite:", nil],
           [NSArray arrayWithObjects:@"[", @"]", @"u", @"", @"g", @"", @"", nil]);
+  id<NSMenuItem> desktopItem = [menu addItemWithTitle:@"Desktop" action:NULL keyEquivalent:@""];
+  [menu setSubmenu:[desktop arrangementMenu] forItem:desktopItem];
   FVMenu (menu, @"Window", [NSArray arrayWithObject:@"Minimize"],
           [NSArray arrayWithObject:@"performMiniaturize:"], [NSArray arrayWithObject:@"m"]);
   FVMenu (menu, @"Help", [NSArray arrayWithObject:@"FileViewer Help"],
@@ -171,11 +202,17 @@ FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArra
   if (!preferencesPanel)
     {
       preferencesPanel = [[NSPanel alloc]
-          initWithContentRect:NSMakeRect (0, 0, 430, 300)
+          initWithContentRect:NSMakeRect (0, 0, 430, 340)
                     styleMask:NSTitledWindowMask | NSClosableWindowMask
                       backing:NSBackingStoreBuffered defer:NO];
       [preferencesPanel setTitle:@"Preferences"];
       [preferencesPanel setReleasedWhenClosed:NO];
+      desktopCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 286, 390, 28)];
+      [desktopCheckbox setButtonType:NSSwitchButton];
+      [desktopCheckbox setTitle:@"Show Desktop icons"];
+      [desktopCheckbox setTarget:self];
+      [desktopCheckbox setAction:@selector (toggleDesktopIcons:)];
+      [[preferencesPanel contentView] addSubview:desktopCheckbox];
       thumbnailCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 246, 390, 28)];
       [thumbnailCheckbox setButtonType:NSSwitchButton];
       [thumbnailCheckbox setTitle:@"Show thumbnails"];
@@ -226,6 +263,8 @@ FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArra
       [[preferencesPanel contentView] addSubview:label];
       [preferencesPanel center];
     }
+  [desktopCheckbox setState:[[NSUserDefaults standardUserDefaults] boolForKey:@"ShowDesktopIcons"]
+      ? NSOnState : NSOffState];
   [thumbnailCheckbox setState:[FVThumbnailOperation enabled] ? NSOnState : NSOffState];
   [filenameTooltipCheckbox setState:FVFilenameTooltipsEnabled () ? NSOnState : NSOffState];
   [excludeRunCheckbox setState:FVExcludeRunFilesystems () ? NSOnState : NSOffState];
@@ -246,6 +285,13 @@ FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArra
   [sender setColor:FVViewerBackgroundColor ()];
   [[NSNotificationCenter defaultCenter] postNotificationName:@"FVAppearancePreferencesChanged"
                                                     object:self];
+}
+
+- (void)toggleDesktopIcons:(NSButton *)sender
+{
+  BOOL show = [sender state] == NSOnState;
+  [[NSUserDefaults standardUserDefaults] setBool:show forKey:@"ShowDesktopIcons"];
+  [desktop setEnabled:show];
 }
 
 - (void)toggleThumbnails:(id)sender
@@ -287,6 +333,9 @@ FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArra
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+  [desktop setEnabled:NO];
+  RELEASE (desktop);
+  RELEASE (desktopCheckbox);
   RELEASE (backgroundColorWell);
   RELEASE (hiddenFilesCheckbox);
   RELEASE (excludeRunCheckbox);

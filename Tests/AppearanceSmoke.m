@@ -20,6 +20,7 @@
 #import <AppKit/AppKit.h>
 #import "FVApplication.h"
 #import "FVWindow.h"
+#import "FVDesktop.h"
 
 @interface FVWindow (AppearanceTesting)
 
@@ -70,8 +71,26 @@ main (void)
   Capture ([[first window] contentView], @"obj/tests/appearance-icons.png");
   [second columnMode:nil];
   Capture ([[second window] contentView], @"obj/tests/appearance-columns.png");
+  id oldDesktopPreference = RETAIN ([defaults objectForKey:@"ShowDesktopIcons"]);
+  [defaults removeObjectForKey:@"ShowDesktopIcons"];
   FVApplication *app = [[FVApplication alloc] init];
+  FVDesktop *desktop = AUTORELEASE ([[FVDesktop alloc] initWithDirectory:@"/nonexistent-fileviewer-desktop-test"]);
+  [app setValue:desktop forKey:@"desktop"];
   [app preferences:nil];
+  NSButton *desktopCheckbox = [app valueForKey:@"desktopCheckbox"];
+  CHECK ([desktopCheckbox state] == NSOffState);
+  CHECK ([[desktop valueForKey:@"iconWindows"] count] == 0);
+  [desktopCheckbox setState:NSOnState];
+  [NSApp sendAction:[desktopCheckbox action] to:[desktopCheckbox target] from:desktopCheckbox];
+  CHECK ([defaults boolForKey:@"ShowDesktopIcons"]);
+  CHECK ([[desktop valueForKey:@"enabled"] boolValue]);
+  [desktopCheckbox setState:NSOffState];
+  [NSApp sendAction:[desktopCheckbox action] to:[desktopCheckbox target] from:desktopCheckbox];
+  CHECK (![defaults boolForKey:@"ShowDesktopIcons"]);
+  CHECK ([[desktop valueForKey:@"iconWindows"] count] == 0);
+  if (oldDesktopPreference) [defaults setObject:oldDesktopPreference forKey:@"ShowDesktopIcons"];
+  else [defaults removeObjectForKey:@"ShowDesktopIcons"];
+  RELEASE (oldDesktopPreference);
   NSColorWell *well = [app valueForKey:@"backgroundColorWell"];
   CHECK ([[well color] isEqual:FVViewerBackgroundColor ()]);
   Capture ([[app valueForKey:@"preferencesPanel"] contentView], @"obj/tests/appearance-preferences.png");

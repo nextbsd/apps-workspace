@@ -1,11 +1,39 @@
 # FileViewer
 
 FileViewer is a native GNUstep file manager, built with Foundation and AppKit.
-It can run alongside GWorkspace or handle directory-opening requests when selected
-as the GNUstep workspace application (`GSWorkspaceApplication = FileViewer`).
-In that configuration, `gopen .` opens the directory in FileViewer. Explicit
+At launch it sets the global GNUstep workspace application default
+(`GSWorkspaceApplication = FileViewer`), so `gopen .` opens the directory in
+FileViewer. On normal quit it removes that default if it still points to
+FileViewer. Explicit
 application choices and file opening continue through NSWorkspace associations.
-FileViewer does not change global GNUstep configuration on startup.
+
+## Desktop icons
+
+Preferences → **Show Desktop icons** displays the contents of `~/Desktop` on
+the primary screen. This preference defaults to **NO** and applies immediately.
+Each item is a separate borderless desktop-level window, using the icon assigned
+by its application through NSWorkspace. Alpha-derived X11 window shapes expose
+the desktop around the icon and label, as in apps-dock, even without a compositor.
+Double-click an icon to open it; drag it to reposition it. Directory changes are
+picked up every two seconds. The existing hidden-files preference also applies.
+
+The **Desktop** menu (also available by right-clicking an icon) arranges icons by
+name, file type (extension), or modification date, newest first. Arrangements run
+in columns from the top right. Dragged and arranged positions are remembered in
+`DesktopIconPositions`; icons outside the available screen area are brought back
+on screen.
+
+On first display, Finder imports active `Iloc` positions from `~/Desktop/.DS_Store`.
+The bounded reader follows the Bud1 allocator and DSDB B-tree, supports Unicode
+filenames, and ignores unreachable/deleted records. **Reload macOS Desktop Layout**
+replaces the saved arrangement with positions from that file. Missing or invalid
+metadata falls back to a grid at startup; explicit reload reports an error and
+keeps the existing layout. The macOS file is never modified. This imports icon
+positions, not macOS wallpaper, view styling, or multi-monitor configuration.
+
+Run `Tests/desktop.sh` for layout, persistence, live refresh, and X11 transparency
+checks on an isolated Xvfb display. `sh Tests/appearance.sh` also checks the desktop
+preference and captures the Preferences panel.
 
 ## Screenshot
 
@@ -15,7 +43,8 @@ FileViewer does not change global GNUstep configuration on startup.
 
 Prerequisites: GNUstep Make, Base and GUI development headers/libraries, an
 installed GUI backend, an Objective-C compiler, libmount development headers
-(`libmount-dev` on Debian), and an X display. This version's
+(`libmount-dev` on Debian), X11 and Xext development libraries
+(`libx11-dev` and `libxext-dev`), and an X display. This version's
 filesystem adapter targets Linux (`renameat2`, `O_NOFOLLOW`, `/proc/self/fd`, and
 POSIX stat timestamps). Other Unix systems need an equivalent platform adapter;
 unsupported atomic rename fails rather than falling back to overwriting rename.

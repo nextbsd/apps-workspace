@@ -19,12 +19,16 @@
 
 #import <AppKit/AppKit.h>
 
+@class FVDesktop;
+
 @interface FVApplication : NSObject
 {
   NSMutableArray *windows;
   NSMutableArray *pendingPaths;
   BOOL launched;
   NSPanel *preferencesPanel;
+  FVDesktop *desktop;
+  NSButton *desktopCheckbox;
   NSButton *thumbnailCheckbox;
   NSButton *filenameTooltipCheckbox;
   NSButton *excludeRunCheckbox;

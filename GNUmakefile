@@ -3,10 +3,10 @@ ifeq ($(GNUSTEP_MAKEFILES),)
 endif
 include $(GNUSTEP_MAKEFILES)/common.make
 APP_NAME = FileViewer
-FileViewer_OBJC_FILES = main.m FVApplication.m FVWindow.m FVModel.m FVOperations.m FVIconView.m FVLauncher.m FVThumbnails.m
-FileViewer_HEADER_FILES = FVApplication.h FVWindow.h FVModel.h FVOperations.h FVIconView.h FVLauncher.h FVThumbnails.h
+FileViewer_OBJC_FILES = main.m FVDesktop.m FVDesktopLayout.m FVApplication.m FVWindow.m FVModel.m FVOperations.m FVIconView.m FVLauncher.m FVThumbnails.m
+FileViewer_HEADER_FILES = FVDesktop.h FVDesktopLayout.h FVApplication.h FVWindow.h FVModel.h FVOperations.h FVIconView.h FVLauncher.h FVThumbnails.h
 FileViewer_RESOURCE_FILES = Resources/FileViewer.png
 FileViewer_APPLICATION_ICON = FileViewer.png
 FileViewer_OBJCFLAGS = -Wall -Wextra -Wno-unused-parameter
-ADDITIONAL_GUI_LIBS += -lmount
+ADDITIONAL_GUI_LIBS += -lmount -lX11 -lXext
 include $(GNUSTEP_MAKEFILES)/application.make
