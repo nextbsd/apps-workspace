@@ -29,6 +29,7 @@
   NSPanel *preferencesPanel;
   FVDesktop *desktop;
   NSButton *desktopCheckbox;
+  NSButton *mountedDrivesCheckbox;
   NSButton *thumbnailCheckbox;
   NSButton *filenameTooltipCheckbox;
   NSButton *excludeRunCheckbox;
@@ -40,6 +41,8 @@
     andDeactivate:(BOOL)flag;
 - (void)newWindow:(id)sender;
 - (void)openPath:(NSString *)path;
+- (void)showDesktopLocationForPath:(NSString *)path;
+- (BOOL)copyFiles:(NSArray *)paths toDirectory:(NSString *)destination;
 - (void)preferences:(id)sender;
 
 @end

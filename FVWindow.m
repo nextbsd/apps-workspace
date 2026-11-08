@@ -1122,14 +1122,19 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
             [placeIcons setObject:[images objectAtIndex:i] forKey:candidate];
         }
     }
-  NSArray *networkPaths = FVVisibleLocationPaths ([FVMounts networkPaths]);
+  NSArray *allNetworkPaths = [FVMounts networkPaths];
+  NSArray *allLocalPaths = [[NSWorkspace sharedWorkspace] mountedLocalVolumePaths];
+  NSMutableSet *allMounts = [NSMutableSet setWithArray:allLocalPaths];
+  [allMounts addObjectsFromArray:allNetworkPaths];
+  ASSIGNCOPY (mountedVolumePaths, allMounts);
+  NSArray *networkPaths = FVVisibleLocationPaths (allNetworkPaths);
   NSMutableArray *network = [NSMutableArray array];
   for (i = 0; i < [networkPaths count]; i++)
     [network addObject:[NSDictionary dictionaryWithObjectsAndKeys:
         [networkPaths objectAtIndex:i], @"path", @"network", @"group", nil]];
   NSMutableArray *mounted = [NSMutableArray array];
   NSMutableSet *mountedPaths = [NSMutableSet set];
-  NSArray *volumes = FVVisibleLocationPaths ([[NSWorkspace sharedWorkspace] mountedLocalVolumePaths]);
+  NSArray *volumes = FVVisibleLocationPaths (allLocalPaths);
   for (i = 0; i < [volumes count]; i++)
     {
       NSString *volume = [volumes objectAtIndex:i];
@@ -1187,6 +1192,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
     [sidebar expandItem:[places objectAtIndex:2]];
   if (networkExpanded)
     [sidebar expandItem:[places objectAtIndex:3]];
+  [self redrawThumbnails];
 }
 
 - (void)navigate:(NSString *)value
@@ -1392,10 +1398,12 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   NSString *p = [item objectForKey:@"path"];
   NSString *name = p ? [placeIcons objectForKey:p] : nil;
   NSImage *image = name ? [NSImage imageNamed:name] : nil;
-  if ([[item objectForKey:@"group"] isEqual:@"network"])
+  if ([[item objectForKey:@"group"] isEqual:@"network"]
+      || [[item objectForKey:@"group"] isEqual:@"mounted"]
+      || [mountedVolumePaths containsObject:p])
     {
       /* Do not contact a possibly disconnected server just to draw its icon. */
-      [cell setImage:[NSImage imageNamed:NSImageNameNetwork]];
+      [cell setImage:[p isEqual:@"/"] ? [self iconForPath:p] : [NSImage imageNamed:@"HardDisk"]];
       return;
     }
   if ([p isEqual:FVRecentsLocation])
@@ -1422,13 +1430,31 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   return values;
 }
 
+- (BOOL)canCopyToLocation:(id)item
+{
+  NSString *destination = [item objectForKey:@"path"];
+  BOOL directory = NO;
+  return !operation && destination && ![destination isEqual:FVRecentsLocation]
+      && [[NSFileManager defaultManager] fileExistsAtPath:destination isDirectory:&directory]
+      && directory;
+}
+
 - (NSDragOperation)outlineView:(NSOutlineView *)sender
     validateDrop:(id<NSDraggingInfo>)info proposedItem:(id)item
     proposedChildIndex:(NSInteger)index
 {
   if (![self favoritePathsFromPasteboard:[info draggingPasteboard]])
     return NSDragOperationNone;
+  if ([item objectForKey:@"path"])
+    {
+      if (![self canCopyToLocation:item])
+        return NSDragOperationNone;
+      [sender setDropItem:item dropChildIndex:NSOutlineViewDropOnItemIndex];
+      return NSDragOperationCopy;
+    }
   id favorites = [places objectAtIndex:1];
+  if (item && item != favorites)
+    return NSDragOperationNone;
   [sender setDropItem:favorites
       dropChildIndex:item == favorites ? index : NSOutlineViewDropOnItemIndex];
   return NSDragOperationCopy;
@@ -1439,6 +1465,15 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 {
   NSArray *paths = [self favoritePathsFromPasteboard:[info draggingPasteboard]];
   if (!paths)
+    return NO;
+  if ([item objectForKey:@"path"])
+    {
+      if (![self canCopyToLocation:item])
+        return NO;
+      [self runOperation:@"copy" paths:paths destination:[item objectForKey:@"path"]];
+      return YES;
+    }
+  if (item && item != [places objectAtIndex:1])
     return NO;
   NSArray *saved = [[NSUserDefaults standardUserDefaults] arrayForKey:@"Favorites"];
   NSMutableArray *favorites = [NSMutableArray arrayWithArray:saved ? saved : [NSArray array]];
@@ -1788,6 +1823,13 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 {
   if (!value)
     return nil;
+  if ([[value stringByStandardizingPath] isEqual:@"/"])
+    {
+      NSImage *rootIcon = [NSImage imageNamed:@"Root_PC"];
+      return rootIcon ? rootIcon : [NSImage imageNamed:@"common_Root_PC"];
+    }
+  if ([mountedVolumePaths containsObject:[value stringByStandardizingPath]])
+    return [NSImage imageNamed:@"HardDisk"];
   if ([FVThumbnailOperation enabled] && [FVThumbnailOperation supportsPath:value])
     {
       NSImage *preview = [thumbnailCache objectForKey:value];
@@ -2595,8 +2637,13 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 /* Scan metadata off the UI thread, including every expanded browser folder. */
 - (void)checkDirectory:(NSTimer *)timer
 {
-  if (!closed && ![FVVisibleLocationPaths ([FVMounts networkPaths]) isEqual:
-      [[[places objectAtIndex:3] objectForKey:@"children"] valueForKey:@"path"]])
+  NSMutableSet *currentMounts = [NSMutableSet setWithArray:
+      [[NSWorkspace sharedWorkspace] mountedLocalVolumePaths]];
+  NSArray *networkPaths = [FVMounts networkPaths];
+  [currentMounts addObjectsFromArray:networkPaths];
+  if (!closed && (![currentMounts isEqualToSet:mountedVolumePaths]
+      || ![FVVisibleLocationPaths (networkPaths) isEqual:
+      [[[places objectAtIndex:3] objectForKey:@"children"] valueForKey:@"path"]]))
     [self rebuildPlaces];
   if (closed || loading || operation || searching || monitorBusy)
     return;
@@ -2778,6 +2825,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   RELEASE (browserRows);
   RELEASE (iconCache);
   RELEASE (placeIcons);
+  RELEASE (mountedVolumePaths);
   RELEASE (errors);
   RELEASE (savedSelection);
   RELEASE (savedBrowserSelection);

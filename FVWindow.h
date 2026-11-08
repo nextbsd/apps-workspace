@@ -37,6 +37,7 @@ NSColor *FVViewerTextColor (void);
   NSOutlineView *sidebar;
   NSArray *places;
   NSMutableDictionary *placeIcons;
+  NSSet *mountedVolumePaths;
   NSSearchField *filter;
   NSTextField *status;
   NSTextField *activityStatus;

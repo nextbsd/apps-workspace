@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+make -s
 mkdir -p obj/tests
 clang $(gnustep-config --objc-flags) -Wall -Wextra -Wno-unused-parameter -I. \
   Tests/LocationsSmoke.m FVWindow.m FVApplication.m FVDesktop.m FVDesktopLayout.m FVModel.m FVOperations.m FVIconView.m FVLauncher.m FVThumbnails.m \

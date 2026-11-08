@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+make -s
 mkdir -p obj/tests
 fixture=$(mktemp -d /tmp/fileviewer-desktop-XXXXXX)
 trap 'rm -rf "$fixture"' EXIT HUP INT TERM
@@ -33,6 +34,7 @@ bad[4108:4112] = ints(2)
 (root / 'cycle').write_bytes(bad)
 PY
 clang $(gnustep-config --objc-flags) -Wall -Wextra -Wno-unused-parameter -I. \
-  Tests/DesktopSmoke.m FVDesktop.m FVDesktopLayout.m \
-  -o obj/tests/desktop $(gnustep-config --gui-libs) -lX11 -lXext
+  Tests/DesktopSmoke.m FVDesktop.m FVDesktopLayout.m FVModel.m FVApplication.m \
+  FVWindow.m FVOperations.m FVIconView.m FVLauncher.m FVThumbnails.m \
+  -o obj/tests/desktop $(gnustep-config --gui-libs) -lX11 -lXext -lmount
 FV_DESKTOP_FIXTURE="$fixture" xvfb-run -a timeout -k 2 45 ./obj/tests/desktop

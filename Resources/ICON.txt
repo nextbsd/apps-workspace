@@ -18,3 +18,9 @@ mascot, faces, Apple Finder logo, or proprietary artwork. Clean edges and simple
 detail, suitable on both light and dark desktop themes.
 
 Tool setting: transparent_background=true
+
+Hard disk icon
+
+HardDisk.tiff is copied unchanged from GNUstep GWorkspace's FSNode framework
+(Resources/Images/HardDisk.tiff), using the installed FSNode resource. It is
+bundled locally so drive icons do not depend on GWorkspace being installed.

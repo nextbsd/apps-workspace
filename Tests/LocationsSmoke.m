@@ -186,6 +186,14 @@ main (void)
 {
   CREATE_AUTORELEASE_POOL (pool);
   [NSApplication sharedApplication];
+  NSImage *driveIcon = AUTORELEASE ([[NSImage alloc]
+      initWithContentsOfFile:@"FileViewer.app/Resources/HardDisk.tiff"]);
+  CHECK (driveIcon != nil);
+  [driveIcon setName:@"HardDisk"];
+  NSImage *rootIcon = [NSImage imageNamed:@"Root_PC"];
+  if (!rootIcon)
+    rootIcon = [NSImage imageNamed:@"common_Root_PC"];
+  CHECK (rootIcon != nil);
   [NSApp finishLaunching];
   /* Volatile arguments isolate these settings from the user's preferences. */
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
@@ -235,11 +243,22 @@ main (void)
     {
       id item = [mountedItems objectAtIndex:volumeIndex];
       CHECK ([[item objectForKey:@"group"] isEqual:@"mounted"]);
+      NSImageCell *driveCell = AUTORELEASE ([[NSImageCell alloc] init]);
+      [source outlineView:outline willDisplayCell:driveCell forTableColumn:nil item:item];
+      NSImage *expectedIcon = [[item objectForKey:@"path"] isEqual:@"/"]
+          ? rootIcon : driveIcon;
+      CHECK (expectedIcon != nil);
+      CHECK ([driveCell image] == expectedIcon);
+      CHECK ([window iconForPath:[item objectForKey:@"path"]] == expectedIcon);
       CHECK (MenuForItem (outline, item) == nil);
       [volumePaths addObject:[item objectForKey:@"path"]];
     }
   CHECK ([volumePaths count] == [mountedItems count]);
   CHECK ([volumePaths containsObject:@"/"]);
+  NSImageCell *networkCell = AUTORELEASE ([[NSImageCell alloc] init]);
+  [source outlineView:outline willDisplayCell:networkCell forTableColumn:nil item:
+      [NSDictionary dictionaryWithObjectsAndKeys:@"network", @"group", @"/offline/share", @"path", nil]];
+  CHECK ([networkCell image] == driveIcon);
   NSArray *commonItems = [common objectForKey:@"children"];
   for (volumeIndex = 0; volumeIndex < [commonItems count]; volumeIndex++)
     CHECK (![volumePaths containsObject:[[commonItems objectAtIndex:volumeIndex] objectForKey:@"path"]]);
@@ -253,6 +272,45 @@ main (void)
   CHECK ([outline numberOfRows] > 3);
   FVTestDrag *drag = [[FVTestDrag alloc] init];
   [[drag draggingPasteboard] declareTypes:[NSArray arrayWithObject:NSFilenamesPboardType] owner:nil];
+  /* Location drops copy into the row's directory, regardless of its section. */
+  [[drag draggingPasteboard] setPropertyList:[NSArray arrayWithObject:document]
+                                   forType:NSFilenamesPboardType];
+  NSArray *dropGroups = [NSArray arrayWithObjects:@"common", @"favorite", @"mounted", @"network", nil];
+  NSUInteger dropIndex;
+  for (dropIndex = 0; dropIndex < [dropGroups count]; dropIndex++)
+    {
+      NSString *group = [dropGroups objectAtIndex:dropIndex];
+      NSString *destination = [root stringByAppendingPathComponent:group];
+      CHECK ([fm createDirectoryAtPath:destination withIntermediateDirectories:NO
+                           attributes:nil error:NULL]);
+      id target = [NSDictionary dictionaryWithObjectsAndKeys:destination, @"path", group, @"group", nil];
+      CHECK ([source outlineView:outline validateDrop:(id)drag proposedItem:target
+          proposedChildIndex:-1] == NSDragOperationCopy);
+      CHECK ([source outlineView:outline acceptDrop:(id)drag item:target childIndex:-1]);
+      NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
+      while ([window valueForKey:@"operation"] && [deadline timeIntervalSinceNow] > 0)
+        Tick (.02);
+      CHECK ([window valueForKey:@"operation"] == nil);
+      NSString *copied = [destination stringByAppendingPathComponent:[document lastPathComponent]];
+      CHECK ([[NSData dataWithContentsOfFile:copied] isEqual:[NSData dataWithContentsOfFile:document]]);
+      CHECK ([[defaults arrayForKey:@"Favorites"] count] == 0);
+    }
+  NSArray *invalidTargets = [NSArray arrayWithObjects:document, FVRecentsLocation,
+      [root stringByAppendingPathComponent:@"missing"], nil];
+  for (dropIndex = 0; dropIndex < [invalidTargets count]; dropIndex++)
+    {
+      id target = [NSDictionary dictionaryWithObject:[invalidTargets objectAtIndex:dropIndex]
+                                             forKey:@"path"];
+      CHECK ([source outlineView:outline validateDrop:(id)drag proposedItem:target
+          proposedChildIndex:-1] == NSDragOperationNone);
+      CHECK (![source outlineView:outline acceptDrop:(id)drag item:target childIndex:-1]);
+    }
+  common = [source outlineView:outline child:0 ofItem:nil];
+  favorites = [source outlineView:outline child:1 ofItem:nil];
+  mounted = [source outlineView:outline child:2 ofItem:nil];
+  CHECK ([source outlineView:outline validateDrop:(id)drag proposedItem:mounted
+      proposedChildIndex:-1] == NSDragOperationNone);
+  CHECK (![source outlineView:outline acceptDrop:(id)drag item:mounted childIndex:-1]);
   [[drag draggingPasteboard] setPropertyList:[NSArray arrayWithObjects:root, app, document, nil]
                                    forType:NSFilenamesPboardType];
   CHECK ([source outlineView:outline validateDrop:(id)drag proposedItem:nil proposedChildIndex:-1]

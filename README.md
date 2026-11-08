@@ -11,11 +11,35 @@ application choices and file opening continue through NSWorkspace associations.
 
 Preferences → **Show Desktop icons** displays the contents of `~/Desktop` on
 the primary screen. This preference defaults to **NO** and applies immediately.
+Desktop icon windows do not hide with FileViewer; refresh restores any icon
+windows that have been ordered out while their display preference remains enabled.
 Each item is a separate borderless desktop-level window, using the icon assigned
 by its application through NSWorkspace. Alpha-derived X11 window shapes expose
 the desktop around the icon and label, as in apps-dock, even without a compositor.
-Double-click an icon to open it; drag it to reposition it. Directory changes are
+Double-click a folder or drive icon to navigate FileViewer to that location.
+Single clicks do not open icons or navigate.
+The current FileViewer window is reused, or a new one opens if none exists.
+Double-click files or applications to open them. Drag icons to reposition them;
+repositioning does not trigger navigation.
+Drop files from a Finder window or another file manager onto a desktop folder or
+mounted-drive icon to copy them into that directory. Valid targets highlight;
+the destination opens in a Finder window for progress, conflict decisions,
+and cancellation. Regular files and application packages are not drop
+targets; unwritable destinations and recursive/self-copies are rejected. Directory changes are
 picked up every two seconds. The existing hidden-files preference also applies.
+
+Preferences → **Show mounted drives on Desktop** independently displays mounted
+local and network volumes, including the root filesystem, and defaults to **NO**
+(`ShowMountedDrives`). You can show drives while desktop file icons are disabled.
+Mounted drives use the bundled GWorkspace hard-disk icon on the desktop and in
+Finder windows (including local and network sidebar entries). The root filesystem
+(`/`, File System) retains its previous icon: the theme’s `Root_PC` image,
+or GNUstep’s `common_Root_PC` image when the theme does not supply it.
+Double-click a drive to open its mount point. Icons update on mount/unmount and
+during the regular desktop refresh; their positions are remembered by mount path.
+System mounts under `/proc`, `/sys`, and `/dev` (except `/dev/shm`) are omitted.
+The existing **Exclude filesystems mounted under /run** preference also applies;
+disable it to show removable drives mounted there.
 
 The **Desktop** menu (also available by right-clicking an icon) arranges icons by
 name, file type (extension), or modification date, newest first. Arrangements run
@@ -97,8 +121,10 @@ Inspected development environment:
   remembers your choice and updates all open windows immediately. This applies to
   every Locations section, including Network and Favorites; saved favorites
   are preserved, and you can still browse those paths directly.
-  Drag files, folders, or applications
-  into the outline to save favorites without copying them. Click a favorite to
+  Drop files, folders, or applications onto a folder or drive in Locations to
+  copy them into that location, including favorite folders and network volumes.
+  Drop onto the Favorites heading, between favorites, or into blank sidebar space
+  to save shortcuts without copying files. Click a favorite to
   open it; right-click a favorite and choose Remove from Favorites to remove
   that shortcut. Go → Remove Favorite removes the selected favorite. XDG
   `user-dirs.dirs` values using `$HOME` or absolute paths are recognized without

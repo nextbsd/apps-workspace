@@ -4,6 +4,7 @@
 #import "FVDesktop.h"
 #import "FVDesktopLayout.h"
 #import "FVApplication.h"
+#import "FVModel.h"
 #include <math.h>
 #ifdef GNUSTEP
 #import <GNUstepGUI/GSDisplayServer.h>
@@ -14,6 +15,19 @@
 
 static const CGFloat FVDesktopWidth = 104;
 static const CGFloat FVDesktopHeight = 96;
+
+/* Absolute keys identify volumes; desktop filenames cannot contain a slash. */
+static NSString *
+FVDesktopPath (NSString *directory, NSString *key)
+{
+  return [key isAbsolutePath] ? key : [directory stringByAppendingPathComponent:key];
+}
+
+static NSString *
+FVDesktopTitle (NSString *path)
+{
+  return [path isEqual:@"/"] ? @"File System" : [path lastPathComponent];
+}
 
 @interface FVDesktopIconWindow : NSWindow
 
@@ -41,23 +55,28 @@ static const CGFloat FVDesktopHeight = 96;
   NSImage *renderedIcon;
   NSPoint dragStart, windowStart;
   BOOL dragged;
+  BOOL dropHighlighted;
 }
 
-- (id)initWithPath:(NSString *)value owner:(FVDesktop *)controller;
+- (id)initWithPath:(NSString *)value mountedDrive:(BOOL)mounted owner:(FVDesktop *)controller;
 
 @end
 
 @implementation FVDesktopIconView
 
-- (id)initWithPath:(NSString *)value owner:(FVDesktop *)controller
+- (id)initWithPath:(NSString *)value mountedDrive:(BOOL)mounted owner:(FVDesktop *)controller
 {
   self = [super initWithFrame:NSMakeRect (0, 0, FVDesktopWidth, FVDesktopHeight)];
   if (self)
     {
       owner = controller;
       ASSIGNCOPY (path, value);
-      ASSIGN (icon, [[NSWorkspace sharedWorkspace] iconForFile:path]);
-      [self setToolTip:[path lastPathComponent]];
+      ASSIGN (icon, mounted ? [NSImage imageNamed:[path isEqual:@"/"] ? @"Root_PC" : @"HardDisk"]
+          : [[NSWorkspace sharedWorkspace] iconForFile:path]);
+      if (!icon && [path isEqual:@"/"])
+        ASSIGN (icon, [NSImage imageNamed:@"common_Root_PC"]);
+      [self setToolTip:path];
+      [self registerForDraggedTypes:[NSArray arrayWithObject:NSFilenamesPboardType]];
     }
   return self;
 }
@@ -79,6 +98,12 @@ static const CGFloat FVDesktopHeight = 96;
   NSShadow *shadow;
   [[NSColor clearColor] set];
   NSRectFillUsingOperation ([self bounds], NSCompositeCopy);
+  if (dropHighlighted)
+    {
+      [[NSColor selectedControlColor] set];
+      [[NSBezierPath bezierPathWithRoundedRect:NSMakeRect (22, 34, 60, 60)
+                                      xRadius:8 yRadius:8] fill];
+    }
   [icon drawInRect:NSMakeRect (28, 40, 48, 48) fromRect:NSZeroRect
         operation:NSCompositeSourceOver fraction:1.0];
   style = AUTORELEASE ([[NSMutableParagraphStyle alloc] init]);
@@ -92,7 +117,7 @@ static const CGFloat FVDesktopHeight = 96;
       [NSFont systemFontOfSize:12], NSFontAttributeName,
       [NSColor whiteColor], NSForegroundColorAttributeName,
       style, NSParagraphStyleAttributeName, shadow, NSShadowAttributeName, nil];
-  [[path lastPathComponent] drawInRect:NSMakeRect (2, 4, 100, 32) withAttributes:attributes];
+  [FVDesktopTitle (path) drawInRect:NSMakeRect (2, 4, 100, 32) withAttributes:attributes];
 }
 
 - (void)drawRect:(NSRect)dirty
@@ -139,6 +164,85 @@ static const CGFloat FVDesktopHeight = 96;
                 operation:NSCompositeSourceOver fraction:1.0];
 }
 
+- (NSArray *)dropPaths:(id<NSDraggingInfo>)sender
+{
+  NSFileManager *manager = [NSFileManager defaultManager];
+  BOOL directory = NO;
+  NSArray *paths;
+  NSString *destination;
+  NSUInteger i;
+  if (!([sender draggingSourceOperationMask] & NSDragOperationCopy)
+      || ![[[sender draggingPasteboard] types] containsObject:NSFilenamesPboardType]
+      || ![manager fileExistsAtPath:path isDirectory:&directory] || !directory
+      || [[NSWorkspace sharedWorkspace] isFilePackageAtPath:path]
+      || ![manager isWritableFileAtPath:path]
+      || ![[NSApp delegate] respondsToSelector:@selector (copyFiles:toDirectory:)])
+    return nil;
+  paths = [[sender draggingPasteboard] propertyListForType:NSFilenamesPboardType];
+  if (![paths isKindOfClass:[NSArray class]] || ![paths count])
+    return nil;
+  destination = [path stringByResolvingSymlinksInPath];
+  for (i = 0; i < [paths count]; i++)
+    {
+      id source = [paths objectAtIndex:i];
+      NSString *resolved;
+      if (![source isKindOfClass:[NSString class]] || ![source isAbsolutePath]
+          || ![manager fileExistsAtPath:source])
+        return nil;
+      resolved = [source stringByResolvingSymlinksInPath];
+      /* Reject copying a directory into itself, including through symlinks. */
+      if ([destination isEqual:resolved] || [resolved isEqual:@"/"]
+          || [destination hasPrefix:[resolved stringByAppendingString:@"/"]]
+          || [[resolved stringByDeletingLastPathComponent] isEqual:destination])
+        return nil;
+    }
+  return paths;
+}
+
+- (void)setDropHighlighted:(BOOL)flag
+{
+  if (dropHighlighted != flag)
+    {
+      dropHighlighted = flag;
+      DESTROY (renderedIcon);
+      [self setNeedsDisplay:YES];
+    }
+}
+
+- (NSDragOperation)draggingUpdated:(id<NSDraggingInfo>)sender
+{
+  BOOL accepts = [self dropPaths:sender] != nil;
+  [self setDropHighlighted:accepts];
+  return accepts ? NSDragOperationCopy : NSDragOperationNone;
+}
+
+- (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender
+{
+  return [self draggingUpdated:sender];
+}
+
+- (void)draggingExited:(id<NSDraggingInfo>)sender
+{
+  [self setDropHighlighted:NO];
+}
+
+- (BOOL)prepareForDragOperation:(id<NSDraggingInfo>)sender
+{
+  return [self dropPaths:sender] != nil;
+}
+
+- (BOOL)performDragOperation:(id<NSDraggingInfo>)sender
+{
+  NSArray *paths = [self dropPaths:sender];
+  [self setDropHighlighted:NO];
+  return paths ? [[NSApp delegate] copyFiles:paths toDirectory:path] : NO;
+}
+
+- (void)concludeDragOperation:(id<NSDraggingInfo>)sender
+{
+  [self setDropHighlighted:NO];
+}
+
 - (NSMenu *)menuForEvent:(NSEvent *)event
 {
   return [owner arrangementMenu];
@@ -149,14 +253,6 @@ static const CGFloat FVDesktopHeight = 96;
   dragged = NO;
   dragStart = [NSEvent mouseLocation];
   windowStart = [[self window] frame].origin;
-  if ([event clickCount] == 2)
-    {
-      id delegate = [NSApp delegate];
-      if ([delegate respondsToSelector:@selector (openFile:withApplication:andDeactivate:)])
-        [delegate openFile:path withApplication:nil andDeactivate:YES];
-      else
-        [[NSWorkspace sharedWorkspace] openFile:path];
-    }
 }
 
 - (void)mouseDragged:(NSEvent *)event
@@ -173,6 +269,20 @@ static const CGFloat FVDesktopHeight = 96;
 {
   if (dragged)
     [owner savePositionForPath:path window:[self window]];
+  else if ([event clickCount] == 2
+      && NSPointInRect ([self convertPoint:[event locationInWindow] fromView:nil], [self bounds]))
+    {
+      id delegate = [NSApp delegate];
+      BOOL directory = NO;
+      [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&directory];
+      if (directory && ![[NSWorkspace sharedWorkspace] isFilePackageAtPath:path]
+          && [delegate respondsToSelector:@selector (showDesktopLocationForPath:)])
+        [delegate showDesktopLocationForPath:path];
+      else if ([delegate respondsToSelector:@selector (openFile:withApplication:andDeactivate:)])
+        [delegate openFile:path withApplication:nil andDeactivate:YES];
+      else
+        [[NSWorkspace sharedWorkspace] openFile:path];
+    }
   dragged = NO;
 }
 
@@ -206,15 +316,15 @@ FVDesktopCompare (id left, id right, void *context)
     {
       NSString *directory = [options objectForKey:@"directory"];
       NSFileManager *manager = [NSFileManager defaultManager];
-      NSDate *a = [[manager attributesOfItemAtPath:[directory stringByAppendingPathComponent:left]
+      NSDate *a = [[manager attributesOfItemAtPath:FVDesktopPath (directory, left)
           error:NULL] fileModificationDate];
-      NSDate *b = [[manager attributesOfItemAtPath:[directory stringByAppendingPathComponent:right]
+      NSDate *b = [[manager attributesOfItemAtPath:FVDesktopPath (directory, right)
           error:NULL] fileModificationDate];
       if (a && b)
         result = [b compare:a];
     }
   if (result == NSOrderedSame)
-    result = [left localizedCaseInsensitiveCompare:right];
+    result = [FVDesktopTitle (left) localizedCaseInsensitiveCompare:FVDesktopTitle (right)];
   if (result == NSOrderedSame)
     result = [left compare:right];
   return result;
@@ -240,6 +350,12 @@ FVDesktopCompare (id left, id right, void *context)
           name:@"FVHiddenFilesChanged" object:nil];
       [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector (refresh:)
           name:NSApplicationDidChangeScreenParametersNotification object:nil];
+      [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector (refresh:)
+          name:@"FVLocationPreferencesChanged" object:nil];
+      [[[NSWorkspace sharedWorkspace] notificationCenter] addObserver:self selector:@selector (refresh:)
+          name:NSWorkspaceDidMountNotification object:nil];
+      [[[NSWorkspace sharedWorkspace] notificationCenter] addObserver:self selector:@selector (refresh:)
+          name:NSWorkspaceDidUnmountNotification object:nil];
     }
   return self;
 }
@@ -247,7 +363,7 @@ FVDesktopCompare (id left, id right, void *context)
 - (void)setEnabled:(BOOL)flag
 {
   enabled = flag;
-  if (flag)
+  if (enabled || showMountedDrives)
     {
       [self refresh:nil];
       if (!refreshTimer)
@@ -266,6 +382,20 @@ FVDesktopCompare (id left, id right, void *context)
         [window close];
       [iconWindows removeAllObjects];
     }
+}
+
+- (void)setShowMountedDrives:(BOOL)flag
+{
+  showMountedDrives = flag;
+  [self setEnabled:enabled];
+}
+
+- (NSArray *)mountedVolumePaths
+{
+  NSMutableArray *paths = [NSMutableArray arrayWithArray:
+      [[NSWorkspace sharedWorkspace] mountedLocalVolumePaths]];
+  [paths addObjectsFromArray:[FVMounts networkPaths]];
+  return paths;
 }
 
 - (void)persistPositions
@@ -287,7 +417,9 @@ FVDesktopCompare (id left, id right, void *context)
     area = [[[NSScreen screens] objectAtIndex:0] visibleFrame];
   point = FVDesktopClamp ([window frame].origin, area);
   [window setFrameOrigin:point];
-  [positions setObject:NSStringFromPoint (point) forKey:[path lastPathComponent]];
+  NSArray *keys = [iconWindows allKeysForObject:window];
+  if ([keys count])
+    [positions setObject:NSStringFromPoint (point) forKey:[keys objectAtIndex:0]];
   [self persistPositions];
 }
 
@@ -301,17 +433,36 @@ FVDesktopCompare (id left, id right, void *context)
   NSRect area;
   NSUInteger i, slot = 0, rows;
   NSMutableArray *occupied = [NSMutableArray array];
-  if (!enabled || ![[NSScreen screens] count]
+  if ((!enabled && !showMountedDrives) || ![[NSScreen screens] count]
       || ([sender isKindOfClass:[NSTimer class]] && [NSEvent pressedMouseButtons]))
     return;
   area = [[[NSScreen screens] objectAtIndex:0] visibleFrame];
   rows = MAX (1, (NSUInteger)(NSHeight (area) / FVDesktopHeight));
-  contents = [manager contentsOfDirectoryAtPath:directory error:NULL];
+  contents = enabled ? [manager contentsOfDirectoryAtPath:directory error:NULL] : nil;
   enumerator = [contents objectEnumerator];
   while ((name = [enumerator nextObject]))
     if (![name isEqual:@".DS_Store"] && (![name hasPrefix:@"."]
         || [[NSUserDefaults standardUserDefaults] boolForKey:@"Hidden"]))
       [names addObject:name];
+  if (showMountedDrives)
+    {
+      NSEnumerator *volumes = [[self mountedVolumePaths] objectEnumerator];
+      NSString *volume;
+      while ((volume = [volumes nextObject]))
+        {
+          if (![volume isKindOfClass:[NSString class]] || ![volume isAbsolutePath])
+            continue;
+          volume = [volume stringByStandardizingPath];
+          if ((FVExcludeRunFilesystems () && ([volume isEqual:@"/run"] || [volume hasPrefix:@"/run/"]))
+              || [volume isEqual:@"/proc"] || [volume hasPrefix:@"/proc/"]
+              || [volume isEqual:@"/sys"] || [volume hasPrefix:@"/sys/"]
+              || (([volume isEqual:@"/dev"] || [volume hasPrefix:@"/dev/"])
+                  && ![volume isEqual:@"/dev/shm"]))
+            continue;
+          if (![names containsObject:volume])
+            [names addObject:volume];
+        }
+    }
   [names sortUsingSelector:@selector (localizedCaseInsensitiveCompare:)];
   oldNames = [iconWindows allKeys];
   for (i = 0; i < [oldNames count]; i++)
@@ -329,7 +480,7 @@ FVDesktopCompare (id left, id right, void *context)
       saved = [positions objectForKey:name];
       if ([saved isKindOfClass:[NSString class]])
         point = NSPointFromString (saved);
-      else if ([macPositions objectForKey:name])
+      else if (![name isAbsolutePath] && [macPositions objectForKey:name])
         {
           NSPoint mac = [[macPositions objectForKey:name] pointValue];
           NSRect screen = [[[NSScreen screens] objectAtIndex:0] frame];
@@ -387,6 +538,8 @@ FVDesktopCompare (id left, id right, void *context)
               initWithContentRect:NSMakeRect (point.x, point.y, FVDesktopWidth, FVDesktopHeight)
               styleMask:NSBorderlessWindowMask backing:NSBackingStoreBuffered defer:NO]);
           [window setReleasedWhenClosed:NO];
+          [window setCanHide:NO];
+          [window setHidesOnDeactivate:NO];
           [window setLevel:NSDesktopWindowLevel];
           [window setCollectionBehavior:NSWindowCollectionBehaviorCanJoinAllSpaces
               | NSWindowCollectionBehaviorStationary | NSWindowCollectionBehaviorIgnoresCycle];
@@ -394,9 +547,9 @@ FVDesktopCompare (id left, id right, void *context)
           [window setBackgroundColor:[NSColor clearColor]];
           [window setHasShadow:NO];
           [window setExcludedFromWindowsMenu:YES];
-          [window setTitle:name];
+          [window setTitle:FVDesktopTitle (name)];
           view = AUTORELEASE ([[FVDesktopIconView alloc]
-              initWithPath:[directory stringByAppendingPathComponent:name] owner:self]);
+              initWithPath:FVDesktopPath (directory, name) mountedDrive:[name isAbsolutePath] owner:self]);
           [window setContentView:view];
           [iconWindows setObject:window forKey:name];
 #ifdef GNUSTEP
@@ -413,8 +566,13 @@ FVDesktopCompare (id left, id right, void *context)
 #endif
           [window orderFront:nil];
         }
-      else if (!NSEqualPoints ([window frame].origin, point))
-        [window setFrameOrigin:point];
+      else
+        {
+          if (!NSEqualPoints ([window frame].origin, point))
+            [window setFrameOrigin:point];
+          if (![window isVisible])
+            [window orderFront:nil];
+        }
     }
 }
 
@@ -441,7 +599,7 @@ FVDesktopCompare (id left, id right, void *context)
 
 - (BOOL)validateMenuItem:(id<NSMenuItem>)item
 {
-  return enabled;
+  return [item action] == @selector (restoreMacLayout:) ? enabled : (enabled || showMountedDrives);
 }
 
 - (void)arrange:(id)sender
@@ -450,7 +608,7 @@ FVDesktopCompare (id left, id right, void *context)
   NSArray *names;
   NSRect area;
   NSUInteger i, rows, columns;
-  if (!enabled || ![[NSScreen screens] count])
+  if ((!enabled && !showMountedDrives) || ![[NSScreen screens] count])
     return;
   [self refresh:nil];
   options = [NSDictionary dictionaryWithObjectsAndKeys:directory, @"directory",
@@ -480,7 +638,11 @@ FVDesktopCompare (id left, id right, void *context)
       return;
     }
   ASSIGN (macPositions, layout);
-  [positions removeAllObjects];
+  NSArray *keys = [positions allKeys];
+  NSUInteger i;
+  for (i = 0; i < [keys count]; i++)
+    if (![[keys objectAtIndex:i] isAbsolutePath])
+      [positions removeObjectForKey:[keys objectAtIndex:i]];
   [self refresh:nil];
   [self persistPositions];
 }
@@ -488,6 +650,8 @@ FVDesktopCompare (id left, id right, void *context)
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+  [[[NSWorkspace sharedWorkspace] notificationCenter] removeObserver:self];
+  showMountedDrives = NO;
   [self setEnabled:NO];
   RELEASE (directory);
   RELEASE (iconWindows);

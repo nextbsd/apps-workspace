@@ -11,10 +11,13 @@
   NSDictionary *macPositions;
   NSTimer *refreshTimer;
   BOOL enabled;
+  BOOL showMountedDrives;
 }
 
 - (id)initWithDirectory:(NSString *)path;
 - (void)setEnabled:(BOOL)flag;
+- (void)setShowMountedDrives:(BOOL)flag;
+- (NSArray *)mountedVolumePaths;
 - (void)refresh:(id)sender;
 - (NSMenu *)arrangementMenu;
 - (void)arrange:(id)sender;
