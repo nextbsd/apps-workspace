@@ -131,6 +131,65 @@ Pump (void)
     [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
 }
 
+/* XQueryTree lists siblings from bottom to top. Resolve WM frames first. */
+static Window
+RootChild (Display *display, Window window)
+{
+  Window root, parent, *children;
+  unsigned int count;
+  while (XQueryTree (display, window, &root, &parent, &children, &count))
+    {
+      if (children)
+        XFree (children);
+      if (parent == root)
+        return window;
+      window = parent;
+    }
+  return None;
+}
+
+static void
+CheckIconStacking (NSDictionary *windows)
+{
+  NSEnumerator *levels = [windows objectEnumerator];
+  NSWindow *item;
+  while ((item = [levels nextObject]))
+    CHECK ([item level] == NSStatusWindowLevel);
+  /* Native stacking requires a window manager to enforce window levels. */
+  if (!getenv ("FV_DESKTOP_TEST_WM"))
+    return;
+  NSWindow *ordinary = [[NSWindow alloc] initWithContentRect:NSMakeRect (0, 0, 500, 500)
+      styleMask:NSTitledWindowMask backing:NSBackingStoreBuffered defer:NO];
+  [ordinary setReleasedWhenClosed:NO];
+  [ordinary orderFront:nil];
+  Pump ();
+  Display *display = (Display *)[GSServerForWindow (ordinary) serverDevice];
+  Window root, parent, *children;
+  Window ordinaryFrame = RootChild (display, (Window)[ordinary windowRef]);
+  unsigned int count, i;
+  NSInteger ordinaryIndex = -1;
+  CHECK (XQueryTree (display, DefaultRootWindow (display), &root, &parent, &children, &count));
+  for (i = 0; i < count; i++)
+    if (children[i] == ordinaryFrame)
+      ordinaryIndex = i;
+  CHECK (ordinaryIndex >= 0);
+  NSEnumerator *enumerator = [windows objectEnumerator];
+  NSWindow *icon;
+  while ((icon = [enumerator nextObject]))
+    {
+      Window frame = RootChild (display, (Window)[icon windowRef]);
+      NSInteger iconIndex = -1;
+      CHECK ([icon level] == NSStatusWindowLevel);
+      for (i = 0; i < count; i++)
+        if (children[i] == frame)
+          iconIndex = i;
+      CHECK (iconIndex > ordinaryIndex);
+    }
+  XFree (children);
+  [ordinary close];
+  RELEASE (ordinary);
+}
+
 int
 main (int argc, char **argv)
 {
@@ -179,10 +238,11 @@ main (int argc, char **argv)
   [desktop setEnabled:YES];
   Pump ();
   CHECK ([windows count] == 5);
+  CheckIconStacking (windows);
   window = [windows objectForKey:@"alpha.txt"];
   CHECK (window && [window isVisible]);
   CHECK (![window isOpaque] && ![[window contentView] isOpaque]);
-  CHECK ([window level] == NSDesktopWindowLevel);
+  CHECK ([window level] == NSStatusWindowLevel);
   CHECK ([[window contentView] valueForKey:@"icon"] != nil);
   CHECK (![window canBecomeKeyWindow]);
   /* A refresh must restore icons ordered out by application/window management. */
@@ -350,7 +410,7 @@ main (int argc, char **argv)
   CHECK (NSContainsRect ([[[NSScreen screens] objectAtIndex:0] visibleFrame], [window frame]));
   enumerator = [windows objectEnumerator];
   while ((window = [enumerator nextObject]))
-    CHECK ([window level] == NSDesktopWindowLevel);
+    CHECK ([window level] == NSStatusWindowLevel);
   CHECK ([original isEqualToData:[NSData dataWithContentsOfFile:storePath]]);
   [desktop setEnabled:NO];
   {
@@ -387,6 +447,7 @@ main (int argc, char **argv)
         writeToFile:@"obj/tests/desktop-root.png" atomically:YES]);
     [desktop setEnabled:YES];
     CHECK ([windows objectForKey:@"Folder"] && [windows objectForKey:drive]);
+    CheckIconStacking (windows);
     window = [windows objectForKey:drive];
     [window display];
     NSImage *driveRendering = [[window contentView] valueForKey:@"renderedIcon"];

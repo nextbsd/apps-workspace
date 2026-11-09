@@ -13,8 +13,10 @@ Preferences → **Show Desktop icons** displays the contents of `~/Desktop` on
 the primary screen. This preference defaults to **NO** and applies immediately.
 Desktop icon windows do not hide with FileViewer; refresh restores any icon
 windows that have been ordered out while their display preference remains enabled.
-Each item is a separate borderless desktop-level window, using the icon assigned
-by its application through NSWorkspace. Alpha-derived X11 window shapes expose
+Each item is a separate borderless status-level window that stays above ordinary
+application windows, including when FileViewer is inactive. This applies to files,
+folders, and mounted volumes. Each item uses the icon assigned by its application
+through NSWorkspace. Alpha-derived X11 window shapes expose
 the desktop around the icon and label, as in apps-dock, even without a compositor.
 Double-click a folder or drive icon to navigate FileViewer to that location.
 Single clicks do not open icons or navigate.
@@ -56,8 +58,9 @@ keeps the existing layout. The macOS file is never modified. This imports icon
 positions, not macOS wallpaper, view styling, or multi-monitor configuration.
 
 Run `Tests/desktop.sh` for layout, persistence, live refresh, and X11 transparency
-checks on an isolated Xvfb display. `sh Tests/appearance.sh` also checks the desktop
-preference and captures the Preferences panel.
+checks on an isolated Xvfb display. Add `--with-wm` to verify native window
+stacking above application windows with Window Maker. `sh Tests/appearance.sh`
+also checks the desktop preference and captures the Preferences panel.
 
 ## Screenshot
 

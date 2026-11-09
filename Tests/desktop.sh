@@ -37,4 +37,15 @@ clang $(gnustep-config --objc-flags) -Wall -Wextra -Wno-unused-parameter -I. \
   Tests/DesktopSmoke.m FVDesktop.m FVDesktopLayout.m FVModel.m FVApplication.m \
   FVWindow.m FVOperations.m FVIconView.m FVLauncher.m FVThumbnails.m \
   -o obj/tests/desktop $(gnustep-config --gui-libs) -lX11 -lXext -lmount
-FV_DESKTOP_FIXTURE="$fixture" xvfb-run -a timeout -k 2 45 ./obj/tests/desktop
+if [ "${1:-}" = "--with-wm" ]; then
+  command -v wmaker >/dev/null
+  FV_DESKTOP_FIXTURE="$fixture" FV_DESKTOP_TEST_WM=1 xvfb-run -a timeout -k 2 45 sh -c '
+    wmaker --no-dock --no-clip --no-autolaunch --dont-restore --static &
+    wm_pid=$!
+    trap "kill $wm_pid 2>/dev/null || true" EXIT
+    sleep 1
+    ./obj/tests/desktop
+  '
+else
+  FV_DESKTOP_FIXTURE="$fixture" xvfb-run -a timeout -k 2 45 ./obj/tests/desktop
+fi

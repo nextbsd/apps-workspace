@@ -9,7 +9,6 @@
 #ifdef GNUSTEP
 #import <GNUstepGUI/GSDisplayServer.h>
 #import <X11/Xlib.h>
-#import <X11/Xatom.h>
 #import <X11/extensions/shape.h>
 #endif
 
@@ -540,7 +539,8 @@ FVDesktopCompare (id left, id right, void *context)
           [window setReleasedWhenClosed:NO];
           [window setCanHide:NO];
           [window setHidesOnDeactivate:NO];
-          [window setLevel:NSDesktopWindowLevel];
+          /* Keep icons above application windows, like dock icons. */
+          [window setLevel:NSStatusWindowLevel];
           [window setCollectionBehavior:NSWindowCollectionBehaviorCanJoinAllSpaces
               | NSWindowCollectionBehaviorStationary | NSWindowCollectionBehaviorIgnoresCycle];
           [window setOpaque:NO];
@@ -552,18 +552,6 @@ FVDesktopCompare (id left, id right, void *context)
               initWithPath:FVDesktopPath (directory, name) mountedDrive:[name isAbsolutePath] owner:self]);
           [window setContentView:view];
           [iconWindows setObject:window forKey:name];
-#ifdef GNUSTEP
-          GSDisplayServer *server = GSServerForWindow (window);
-          Class xServer = NSClassFromString (@"XGServer");
-          if (xServer && [server isKindOfClass:xServer])
-            {
-              Display *display = (Display *)[server serverDevice];
-              Window native = (Window)[window windowRef];
-              Atom type = XInternAtom (display, "_NET_WM_WINDOW_TYPE_DESKTOP", False);
-              XChangeProperty (display, native, XInternAtom (display, "_NET_WM_WINDOW_TYPE", False),
-                  XA_ATOM, 32, PropModeReplace, (unsigned char *)&type, 1);
-            }
-#endif
           [window orderFront:nil];
         }
       else
