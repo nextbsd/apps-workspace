@@ -578,7 +578,7 @@ FVDesktopCompare (id left, id right, void *context)
       [item setTarget:self];
     }
   [menu addItem:[NSMenuItem separatorItem]];
-  item = [menu addItemWithTitle:@"Reload macOS Desktop Layout" action:@selector (restoreMacLayout:) keyEquivalent:@""];
+  item = [menu addItemWithTitle:@"Reload Desktop Layout" action:@selector (restoreMacLayout:) keyEquivalent:@""];
   [item setTarget:self];
   item = [menu addItemWithTitle:@"Refresh Desktop" action:@selector (refresh:) keyEquivalent:@""];
   [item setTarget:self];

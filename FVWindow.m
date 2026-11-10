@@ -89,6 +89,13 @@ FVViewerTextColor (void)
 
 @end
 
+/* libs-base strips a leading /private, and raises when nothing is left. */
+static NSString *
+FVStandardizedPath (NSString *value)
+{
+  return [value isEqual:@"/private"] ? value : [value stringByStandardizingPath];
+}
+
 /* Apply the same visibility policy to every Locations section and mount poll. */
 static NSArray *
 FVVisibleLocationPaths (NSArray *paths)
@@ -101,12 +108,44 @@ FVVisibleLocationPaths (NSArray *paths)
       id path = [paths objectAtIndex:i];
       if (![path isKindOfClass:[NSString class]])
         continue;
-      NSString *standard = [path stringByStandardizingPath];
+      NSString *standard = FVStandardizedPath (path);
       if (excludeRun && ([standard isEqual:@"/run"] || [standard hasPrefix:@"/run/"]))
         continue;
       [visible addObject:path];
     }
   return visible;
+}
+
+/* A folder in a mount root is a volume only if it is on a different device. */
+static NSArray *
+FVVolumesInMountRoots (void)
+{
+  NSMutableArray *found = [NSMutableArray array];
+  NSArray *roots = [NSArray arrayWithObjects:@"/Volumes", @"/media",
+      [@"/media" stringByAppendingPathComponent:NSUserName ()],
+      [@"/run/media" stringByAppendingPathComponent:NSUserName ()], nil];
+  NSUInteger i;
+  for (i = 0; i < [roots count]; i++)
+    {
+      NSString *root = [roots objectAtIndex:i];
+      struct stat parent;
+      if (lstat ([root fileSystemRepresentation], &parent) != 0 || !S_ISDIR (parent.st_mode))
+        continue;
+      NSArray *names = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:root error:NULL];
+      NSUInteger n;
+      for (n = 0; n < [names count]; n++)
+        {
+          NSString *full = [root stringByAppendingPathComponent:[names objectAtIndex:n]];
+          struct stat child;
+          if ([[names objectAtIndex:n] hasPrefix:@"."]
+              || lstat ([full fileSystemRepresentation], &child) != 0
+              || !S_ISDIR (child.st_mode) || child.st_dev == parent.st_dev
+              || [found containsObject:full])
+            continue;
+          [found addObject:full];
+        }
+    }
+  return [found sortedArrayUsingSelector:@selector (caseInsensitiveCompare:)];
 }
 
 static NSString *
@@ -1071,16 +1110,15 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 
 - (void)rebuildPlaces
 {
-  NSMutableArray *p = [NSMutableArray arrayWithObjects:NSHomeDirectory (), @"/", nil];
+  NSMutableArray *p = [NSMutableArray arrayWithObject:NSHomeDirectory ()];
   NSArray *names = [NSArray arrayWithObjects:@"Desktop", @"Documents", @"Downloads",
-                                             @"Pictures", @"Music", @"Videos", nil];
+                                             @"Images", @"Music", @"Videos", nil];
   NSArray *images = [NSArray arrayWithObjects:@"Desktop", @"DocsFolder", @"DownloadFolder",
                                               @"ImageFolder", @"MusicFolder", @"VideoFolder", nil];
   if (!placeIcons)
     placeIcons = [[NSMutableDictionary alloc] init];
   [placeIcons removeAllObjects];
   [placeIcons setObject:@"HomeDirectory" forKey:NSHomeDirectory ()];
-  [placeIcons setObject:@"Root_PC" forKey:@"/"];
   NSUInteger i;
   for (i = 0; i < [names count]; i++)
     {
@@ -1099,6 +1137,8 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       NSString *key = [NSString
           stringWithFormat:@"XDG_%@_DIR=\"", [([[names objectAtIndex:i] isEqual:@"Downloads"]
                                                    ? @"DOWNLOAD"
+                                                   : [[names objectAtIndex:i] isEqual:@"Images"]
+                                                   ? @"PICTURES"
                                                    : [names objectAtIndex:i]) uppercaseString]];
       for (line = 0; line < [lines count]; line++)
         {
@@ -1126,23 +1166,18 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   NSArray *allLocalPaths = [[NSWorkspace sharedWorkspace] mountedLocalVolumePaths];
   NSMutableSet *allMounts = [NSMutableSet setWithArray:allLocalPaths];
   [allMounts addObjectsFromArray:allNetworkPaths];
+  NSArray *rootVolumes = FVVolumesInMountRoots ();
+  [allMounts addObjectsFromArray:rootVolumes];
   ASSIGNCOPY (mountedVolumePaths, allMounts);
   NSArray *networkPaths = FVVisibleLocationPaths (allNetworkPaths);
-  NSMutableArray *network = [NSMutableArray array];
-  for (i = 0; i < [networkPaths count]; i++)
-    [network addObject:[NSDictionary dictionaryWithObjectsAndKeys:
-        [networkPaths objectAtIndex:i], @"path", @"network", @"group", nil]];
   NSMutableArray *mounted = [NSMutableArray array];
   NSMutableSet *mountedPaths = [NSMutableSet set];
-  NSArray *volumes = FVVisibleLocationPaths (allLocalPaths);
+  NSMutableArray *volumeCandidates = [NSMutableArray arrayWithArray:rootVolumes];
+  [volumeCandidates addObjectsFromArray:networkPaths];
+  NSArray *volumes = FVVisibleLocationPaths (volumeCandidates);
   for (i = 0; i < [volumes count]; i++)
     {
       NSString *volume = [volumes objectAtIndex:i];
-      if ([networkPaths containsObject:volume])
-        continue;
-      if ([volume hasPrefix:@"/proc"] || [volume hasPrefix:@"/sys"]
-          || ([volume hasPrefix:@"/dev"] && ![volume isEqual:@"/dev/shm"]))
-        continue;
       if (![mountedPaths containsObject:volume])
         {
           [mountedPaths addObject:volume];
@@ -1157,41 +1192,48 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   [p removeObjectsInArray:networkPaths];
   [p setArray:FVVisibleLocationPaths (p)];
   NSMutableArray *common = [NSMutableArray array];
-  NSMutableArray *favorites = [NSMutableArray array];
   for (i = 0; i < [p count]; i++)
     [common addObject:[NSDictionary dictionaryWithObjectsAndKeys:
         [p objectAtIndex:i], @"path", @"common", @"group", nil]];
-  [common addObject:[NSDictionary dictionaryWithObjectsAndKeys:
-      FVRecentsLocation, @"path", @"Recents", @"title", @"recent", @"group", nil]];
-  NSArray *saved = FVVisibleLocationPaths ([[NSUserDefaults standardUserDefaults] arrayForKey:@"Favorites"]);
-  for (i = 0; i < [saved count]; i++)
-    if ([[saved objectAtIndex:i] isKindOfClass:[NSString class]])
-      [favorites addObject:[NSDictionary dictionaryWithObjectsAndKeys:
-          [saved objectAtIndex:i], @"path", @"favorite", @"group", nil]];
+  NSString *applications = [NSHomeDirectory () stringByAppendingPathComponent:@"Applications"];
+  BOOL isDirectory = NO;
+  if ([[NSFileManager defaultManager] fileExistsAtPath:applications isDirectory:&isDirectory]
+      && isDirectory && ![p containsObject:applications])
+    [common insertObject:[NSDictionary dictionaryWithObjectsAndKeys:
+        applications, @"path", @"common", @"group", nil] atIndex:MIN (1, [common count])];
+  NSMutableArray *domains = [NSMutableArray array];
+  NSArray *domainPaths = [NSArray arrayWithObjects:@"/Local", @"/Network", @"/System", nil];
+  for (i = 0; i < [domainPaths count]; i++)
+    if ([[NSFileManager defaultManager] fileExistsAtPath:[domainPaths objectAtIndex:i]
+                                             isDirectory:&isDirectory] && isDirectory)
+      [domains addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+          [domainPaths objectAtIndex:i], @"path", @"domain", @"group", nil]];
+  NSString *home = NSHomeDirectory ();
+  NSString *userTitle = ([home isEqual:@"/Network"] || [home hasPrefix:@"/Network/"])
+      ? @"Network User" : @"Local User";
+  NSMutableDictionary *volumesGroup = [NSMutableDictionary dictionaryWithObjectsAndKeys:
+      @"Volumes", @"title", mounted, @"children", nil];
+  if ([[NSFileManager defaultManager] fileExistsAtPath:@"/Volumes" isDirectory:&isDirectory]
+      && isDirectory)
+    [volumesGroup setObject:@"/Volumes" forKey:@"path"];
   BOOL initial = places == nil;
   BOOL commonExpanded = initial || [sidebar isItemExpanded:[places objectAtIndex:0]];
-  BOOL favoritesExpanded = initial || [sidebar isItemExpanded:[places objectAtIndex:1]];
-  BOOL mountedExpanded = initial || [sidebar isItemExpanded:[places objectAtIndex:2]];
-  BOOL networkExpanded = initial || [sidebar isItemExpanded:[places objectAtIndex:3]];
+  BOOL domainsExpanded = initial || [sidebar isItemExpanded:[places objectAtIndex:1]];
+  BOOL volumesExpanded = initial || [sidebar isItemExpanded:[places objectAtIndex:2]];
   RELEASE (places);
   places = [[NSArray alloc] initWithObjects:
-      [NSDictionary dictionaryWithObjectsAndKeys:@"Common Locations", @"title",
+      [NSDictionary dictionaryWithObjectsAndKeys:userTitle, @"title",
                                                  common, @"children", nil],
-      [NSDictionary dictionaryWithObjectsAndKeys:@"Favorites", @"title",
-                                                 favorites, @"children", nil],
-      [NSDictionary dictionaryWithObjectsAndKeys:@"/Volumes", @"title",
-                                                 mounted, @"children", nil],
-      [NSDictionary dictionaryWithObjectsAndKeys:@"Network", @"title",
-                                                 network, @"children", nil], nil];
+      [NSDictionary dictionaryWithObjectsAndKeys:@"Domains", @"title",
+                                                 domains, @"children", nil],
+      volumesGroup, nil];
   [sidebar reloadData];
   if (commonExpanded)
     [sidebar expandItem:[places objectAtIndex:0]];
-  if (favoritesExpanded)
+  if (domainsExpanded)
     [sidebar expandItem:[places objectAtIndex:1]];
-  if (mountedExpanded)
+  if (volumesExpanded)
     [sidebar expandItem:[places objectAtIndex:2]];
-  if (networkExpanded)
-    [sidebar expandItem:[places objectAtIndex:3]];
   [self redrawThumbnails];
 }
 
@@ -1386,10 +1428,10 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   if ([p isEqual:FVRecentsLocation])
     return @"Recents";
   if ([p isEqual:NSHomeDirectory ()])
-    return @"Home";
+    return NSUserName ();
   if ([p isEqual:[[FVOperations homeTrash] stringByAppendingPathComponent:@"files"]])
     return @"Trash";
-  return [p isEqual:@"/"] ? @"Filesystem /" : [p lastPathComponent];
+  return [p lastPathComponent];
 }
 
 - (void)outlineView:(NSOutlineView *)sender willDisplayCell:(id)cell
@@ -1398,12 +1440,16 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   NSString *p = [item objectForKey:@"path"];
   NSString *name = p ? [placeIcons objectForKey:p] : nil;
   NSImage *image = name ? [NSImage imageNamed:name] : nil;
-  if ([[item objectForKey:@"group"] isEqual:@"network"]
-      || [[item objectForKey:@"group"] isEqual:@"mounted"]
+  if ([item objectForKey:@"children"])
+    {
+      [cell setImage:nil];
+      return;
+    }
+  if ([[item objectForKey:@"group"] isEqual:@"mounted"]
       || [mountedVolumePaths containsObject:p])
     {
       /* Do not contact a possibly disconnected server just to draw its icon. */
-      [cell setImage:[p isEqual:@"/"] ? [self iconForPath:p] : [NSImage imageNamed:@"HardDisk"]];
+      [cell setImage:[NSImage imageNamed:@"HardDisk"]];
       return;
     }
   if ([p isEqual:FVRecentsLocation])
@@ -1452,12 +1498,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       [sender setDropItem:item dropChildIndex:NSOutlineViewDropOnItemIndex];
       return NSDragOperationCopy;
     }
-  id favorites = [places objectAtIndex:1];
-  if (item && item != favorites)
-    return NSDragOperationNone;
-  [sender setDropItem:favorites
-      dropChildIndex:item == favorites ? index : NSOutlineViewDropOnItemIndex];
-  return NSDragOperationCopy;
+  return NSDragOperationNone;
 }
 
 - (BOOL)outlineView:(NSOutlineView *)sender acceptDrop:(id<NSDraggingInfo>)info
@@ -1473,26 +1514,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       [self runOperation:@"copy" paths:paths destination:[item objectForKey:@"path"]];
       return YES;
     }
-  if (item && item != [places objectAtIndex:1])
-    return NO;
-  NSArray *saved = [[NSUserDefaults standardUserDefaults] arrayForKey:@"Favorites"];
-  NSMutableArray *favorites = [NSMutableArray arrayWithArray:saved ? saved : [NSArray array]];
-  NSArray *visibleFavorites = [[places objectAtIndex:1] objectForKey:@"children"];
-  NSUInteger insertion = [favorites count];
-  if (item == [places objectAtIndex:1] && index >= 0
-      && (NSUInteger)index < [visibleFavorites count])
-    insertion = [favorites indexOfObject:[[visibleFavorites objectAtIndex:index] objectForKey:@"path"]];
-  NSUInteger i;
-  for (i = 0; i < [paths count]; i++)
-    {
-      NSString *p = [[paths objectAtIndex:i] stringByStandardizingPath];
-      if (![favorites containsObject:p])
-        [favorites insertObject:p atIndex:insertion++];
-    }
-  [[NSUserDefaults standardUserDefaults] setObject:favorites forKey:@"Favorites"];
-  [self rebuildPlaces];
-  [sidebar expandItem:[places objectAtIndex:1]];
-  return YES;
+  return NO;
 }
 
 - (NSArray *)items
@@ -1823,12 +1845,18 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 {
   if (!value)
     return nil;
-  if ([[value stringByStandardizingPath] isEqual:@"/"])
+  if ([FVStandardizedPath (value) isEqual:@"/"])
     {
       NSImage *rootIcon = [NSImage imageNamed:@"Root_PC"];
       return rootIcon ? rootIcon : [NSImage imageNamed:@"common_Root_PC"];
     }
-  if ([mountedVolumePaths containsObject:[value stringByStandardizingPath]])
+  if ([value isEqual:@"/Local"] || [value isEqual:@"/Network"])
+    {
+      NSImage *domainIcon = [NSImage imageNamed:@"common_GSFolder"];
+      if (domainIcon)
+        return domainIcon;
+    }
+  if ([mountedVolumePaths containsObject:FVStandardizedPath (value)])
     return [NSImage imageNamed:@"HardDisk"];
   if ([FVThumbnailOperation enabled] && [FVThumbnailOperation supportsPath:value])
     {
@@ -2639,11 +2667,9 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 {
   NSMutableSet *currentMounts = [NSMutableSet setWithArray:
       [[NSWorkspace sharedWorkspace] mountedLocalVolumePaths]];
-  NSArray *networkPaths = [FVMounts networkPaths];
-  [currentMounts addObjectsFromArray:networkPaths];
-  if (!closed && (![currentMounts isEqualToSet:mountedVolumePaths]
-      || ![FVVisibleLocationPaths (networkPaths) isEqual:
-      [[[places objectAtIndex:3] objectForKey:@"children"] valueForKey:@"path"]]))
+  [currentMounts addObjectsFromArray:[FVMounts networkPaths]];
+  [currentMounts addObjectsFromArray:FVVolumesInMountRoots ()];
+  if (!closed && ![currentMounts isEqualToSet:mountedVolumePaths])
     [self rebuildPlaces];
   if (closed || loading || operation || searching || monitorBusy)
     return;

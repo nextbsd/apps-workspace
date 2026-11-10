@@ -37,10 +37,24 @@ FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArra
     [NSApp setWindowsMenu:menu];
 }
 
+/* FileViewer starts at login, so make sure the standard home folders exist. */
+static void
+FVCreateStandardUserFolders (void)
+{
+  NSArray *names = [NSArray arrayWithObjects:@"Applications", @"Desktop", @"Documents",
+      @"Downloads", @"Images", @"Music", @"Public", @"Templates", @"Videos", nil];
+  NSUInteger i;
+  for (i = 0; i < [names count]; i++)
+    [[NSFileManager defaultManager]
+        createDirectoryAtPath:[NSHomeDirectory () stringByAppendingPathComponent:[names objectAtIndex:i]]
+        withIntermediateDirectories:YES attributes:nil error:NULL];
+}
+
 @implementation FVApplication
 
 - (void)applicationWillFinishLaunching:(NSNotification *)note
 {
+  FVCreateStandardUserFolders ();
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
   [defaults synchronize];
   NSMutableDictionary *domain = [NSMutableDictionary dictionaryWithDictionary:
@@ -109,10 +123,9 @@ FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArra
           [NSArray arrayWithObjects:@"1", @"2", @"3", @"+", @"-", @"h", @"", @"r", @"f", nil]);
   FVMenu (menu, @"Go",
           [NSArray arrayWithObjects:@"Back", @"Forward", @"Parent Folder", @"Home",
-                                    @"Go to Folder…", @"Add Favorite", @"Remove Favorite", nil],
-          [NSArray arrayWithObjects:@"back:", @"forward:", @"parent:", @"home:", @"go:",
-                                    @"addFavorite:", @"removeFavorite:", nil],
-          [NSArray arrayWithObjects:@"[", @"]", @"u", @"", @"g", @"", @"", nil]);
+                                    @"Go to Folder…", nil],
+          [NSArray arrayWithObjects:@"back:", @"forward:", @"parent:", @"home:", @"go:", nil],
+          [NSArray arrayWithObjects:@"[", @"]", @"u", @"", @"g", nil]);
   id<NSMenuItem> desktopItem = [menu addItemWithTitle:@"Desktop" action:NULL keyEquivalent:@""];
   [menu setSubmenu:[desktop arrangementMenu] forItem:desktopItem];
   FVMenu (menu, @"Window", [NSArray arrayWithObject:@"Minimize"],
@@ -121,7 +134,6 @@ FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArra
           [NSArray arrayWithObject:@"help:"], [NSArray arrayWithObject:@"?"]);
   [menu addItemWithTitle:@"Quit" action:@selector (terminate:) keyEquivalent:@"q"];
   [NSApp setMainMenu:menu];
-  NSString *initial = [[NSUserDefaults standardUserDefaults] stringForKey:@"LastPath"];
   launched = YES;
   if ([pendingPaths count])
     {
@@ -130,7 +142,7 @@ FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArra
         [self openPath:[pendingPaths objectAtIndex:i]];
     }
   else
-    [self openPath:initial ? initial : NSHomeDirectory ()];
+    [self openPath:NSHomeDirectory ()];
 }
 
 - (void)openPath:(NSString *)value

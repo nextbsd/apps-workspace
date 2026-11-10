@@ -51,7 +51,7 @@ on screen.
 
 On first display, Finder imports active `Iloc` positions from `~/Desktop/.DS_Store`.
 The bounded reader follows the Bud1 allocator and DSDB B-tree, supports Unicode
-filenames, and ignores unreachable/deleted records. **Reload macOS Desktop Layout**
+filenames, and ignores unreachable/deleted records. **Reload Desktop Layout**
 replaces the saved arrangement with positions from that file. Missing or invalid
 metadata falls back to a grid at startup; explicit reload reports an error and
 keeps the existing layout. The macOS file is never modified. This imports icon
