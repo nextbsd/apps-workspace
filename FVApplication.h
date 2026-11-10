@@ -19,7 +19,6 @@
 
 #import <AppKit/AppKit.h>
 
-@class FVDesktop;
 
 @interface FVApplication : NSObject
 {
@@ -27,12 +26,7 @@
   NSMutableArray *pendingPaths;
   BOOL launched;
   NSPanel *preferencesPanel;
-  FVDesktop *desktop;
-  NSButton *desktopCheckbox;
-  NSButton *mountedDrivesCheckbox;
   NSButton *thumbnailCheckbox;
-  NSButton *filenameTooltipCheckbox;
-  NSButton *excludeRunCheckbox;
   NSButton *hiddenFilesCheckbox;
   NSColorWell *backgroundColorWell;
 }
@@ -41,8 +35,6 @@
     andDeactivate:(BOOL)flag;
 - (void)newWindow:(id)sender;
 - (void)openPath:(NSString *)path;
-- (void)showDesktopLocationForPath:(NSString *)path;
-- (BOOL)copyFiles:(NSArray *)paths toDirectory:(NSString *)destination;
 - (void)preferences:(id)sender;
 
 @end

@@ -20,7 +20,6 @@
 #import "FVApplication.h"
 #import "FVWindow.h"
 #import "FVThumbnails.h"
-#import "FVDesktop.h"
 
 static void
 FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArray *keys)
@@ -66,8 +65,6 @@ FVCreateStandardUserFolders (void)
 
 - (void)applicationWillTerminate:(NSNotification *)note
 {
-  [desktop setEnabled:NO];
-  [desktop setShowMountedDrives:NO];
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
   [defaults synchronize];
   NSMutableDictionary *domain = [NSMutableDictionary dictionaryWithDictionary:
@@ -83,9 +80,6 @@ FVCreateStandardUserFolders (void)
 - (void)applicationDidFinishLaunching:(NSNotification *)note
 {
   windows = [[NSMutableArray alloc] init];
-  desktop = [[FVDesktop alloc] initWithDirectory:[NSHomeDirectory () stringByAppendingPathComponent:@"Desktop"]];
-  [desktop setEnabled:[[NSUserDefaults standardUserDefaults] boolForKey:@"ShowDesktopIcons"]];
-  [desktop setShowMountedDrives:[[NSUserDefaults standardUserDefaults] boolForKey:@"ShowMountedDrives"]];
   NSImage *icon = [NSImage imageNamed:@"FileViewer.png"];
   if (icon)
     [NSApp setApplicationIconImage:icon];
@@ -126,8 +120,6 @@ FVCreateStandardUserFolders (void)
                                     @"Go to Folder…", nil],
           [NSArray arrayWithObjects:@"back:", @"forward:", @"parent:", @"home:", @"go:", nil],
           [NSArray arrayWithObjects:@"[", @"]", @"u", @"", @"g", nil]);
-  id<NSMenuItem> desktopItem = [menu addItemWithTitle:@"Desktop" action:NULL keyEquivalent:@""];
-  [menu setSubmenu:[desktop arrangementMenu] forItem:desktopItem];
   FVMenu (menu, @"Window", [NSArray arrayWithObject:@"Minimize"],
           [NSArray arrayWithObject:@"performMiniaturize:"], [NSArray arrayWithObject:@"m"]);
   FVMenu (menu, @"Help", [NSArray arrayWithObject:@"FileViewer Help"],
@@ -151,64 +143,6 @@ FVCreateStandardUserFolders (void)
   [windows addObject:controller];
   [controller showWindow:self];
   RELEASE (controller);
-}
-
-- (void)showDesktopLocationForPath:(NSString *)value
-{
-  BOOL directory = NO;
-  FVWindow *controller = nil;
-  NSEnumerator *enumerator;
-  FVWindow *candidate;
-  NSString *location;
-  if (![[NSFileManager defaultManager] fileExistsAtPath:value isDirectory:&directory])
-    return;
-  location = directory && ![[NSWorkspace sharedWorkspace] isFilePackageAtPath:value]
-      ? value : [value stringByDeletingLastPathComponent];
-  enumerator = [windows reverseObjectEnumerator];
-  while ((candidate = [enumerator nextObject]))
-    {
-      if (!controller)
-        controller = candidate;
-      if ([candidate window] == [NSApp mainWindow])
-        {
-          controller = candidate;
-          break;
-        }
-    }
-  if (controller)
-    {
-      [controller navigate:location];
-      if ([[controller window] isMiniaturized])
-        [[controller window] deminiaturize:self];
-      [controller showWindow:self];
-    }
-  else
-    {
-      if (!windows)
-        windows = [[NSMutableArray alloc] init];
-      [self openPath:location];
-    }
-  [NSApp activateIgnoringOtherApps:YES];
-}
-
-/* Keep desktop drops in the normal operation UI: progress, conflict decisions,
- * cancellation and errors are handled by the destination window. */
-- (BOOL)copyFiles:(NSArray *)paths toDirectory:(NSString *)destination
-{
-  FVWindow *controller;
-  BOOL directory = NO;
-  if (![paths isKindOfClass:[NSArray class]] || ![paths count]
-      || ![[NSFileManager defaultManager] fileExistsAtPath:destination isDirectory:&directory]
-      || !directory)
-    return NO;
-  controller = [[FVWindow alloc] initWithPath:destination];
-  if (!windows)
-    windows = [[NSMutableArray alloc] init];
-  [windows addObject:controller];
-  [controller showWindow:self];
-  [controller runOperation:@"copy" paths:paths destination:destination];
-  RELEASE (controller);
-  return YES;
 }
 
 - (BOOL)application:(NSApplication *)app openFile:(NSString *)filename
@@ -274,41 +208,17 @@ FVCreateStandardUserFolders (void)
   if (!preferencesPanel)
     {
       preferencesPanel = [[NSPanel alloc]
-          initWithContentRect:NSMakeRect (0, 0, 430, 380)
+          initWithContentRect:NSMakeRect (0, 0, 430, 220)
                     styleMask:NSTitledWindowMask | NSClosableWindowMask
                       backing:NSBackingStoreBuffered defer:NO];
       [preferencesPanel setTitle:@"Preferences"];
       [preferencesPanel setReleasedWhenClosed:NO];
-      desktopCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 326, 390, 28)];
-      [desktopCheckbox setButtonType:NSSwitchButton];
-      [desktopCheckbox setTitle:@"Show Desktop icons"];
-      [desktopCheckbox setTarget:self];
-      [desktopCheckbox setAction:@selector (toggleDesktopIcons:)];
-      [[preferencesPanel contentView] addSubview:desktopCheckbox];
-      mountedDrivesCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 286, 390, 28)];
-      [mountedDrivesCheckbox setButtonType:NSSwitchButton];
-      [mountedDrivesCheckbox setTitle:@"Show mounted drives on Desktop"];
-      [mountedDrivesCheckbox setTarget:self];
-      [mountedDrivesCheckbox setAction:@selector (toggleMountedDrives:)];
-      [[preferencesPanel contentView] addSubview:mountedDrivesCheckbox];
-      thumbnailCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 246, 390, 28)];
+      thumbnailCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 166, 390, 28)];
       [thumbnailCheckbox setButtonType:NSSwitchButton];
       [thumbnailCheckbox setTitle:@"Show thumbnails"];
       [thumbnailCheckbox setTarget:self];
       [thumbnailCheckbox setAction:@selector (toggleThumbnails:)];
       [[preferencesPanel contentView] addSubview:thumbnailCheckbox];
-      filenameTooltipCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 206, 390, 28)];
-      [filenameTooltipCheckbox setButtonType:NSSwitchButton];
-      [filenameTooltipCheckbox setTitle:@"Show full filenames on hover"];
-      [filenameTooltipCheckbox setTarget:self];
-      [filenameTooltipCheckbox setAction:@selector (toggleFilenameTooltips:)];
-      [[preferencesPanel contentView] addSubview:filenameTooltipCheckbox];
-      excludeRunCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 166, 390, 28)];
-      [excludeRunCheckbox setButtonType:NSSwitchButton];
-      [excludeRunCheckbox setTitle:@"Exclude filesystems mounted under /run"];
-      [excludeRunCheckbox setTarget:self];
-      [excludeRunCheckbox setAction:@selector (toggleRunFilesystems:)];
-      [[preferencesPanel contentView] addSubview:excludeRunCheckbox];
       hiddenFilesCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 126, 390, 28)];
       [hiddenFilesCheckbox setButtonType:NSSwitchButton];
       [hiddenFilesCheckbox setTitle:@"Show hidden files and directories"];
@@ -341,13 +251,7 @@ FVCreateStandardUserFolders (void)
       [[preferencesPanel contentView] addSubview:label];
       [preferencesPanel center];
     }
-  [desktopCheckbox setState:[[NSUserDefaults standardUserDefaults] boolForKey:@"ShowDesktopIcons"]
-      ? NSOnState : NSOffState];
-  [mountedDrivesCheckbox setState:[[NSUserDefaults standardUserDefaults] boolForKey:@"ShowMountedDrives"]
-      ? NSOnState : NSOffState];
   [thumbnailCheckbox setState:[FVThumbnailOperation enabled] ? NSOnState : NSOffState];
-  [filenameTooltipCheckbox setState:FVFilenameTooltipsEnabled () ? NSOnState : NSOffState];
-  [excludeRunCheckbox setState:FVExcludeRunFilesystems () ? NSOnState : NSOffState];
   [backgroundColorWell setColor:FVViewerBackgroundColor ()];
   [self hiddenFilesPreferencesChanged:nil];
   [preferencesPanel makeKeyAndOrderFront:self];
@@ -367,41 +271,11 @@ FVCreateStandardUserFolders (void)
                                                     object:self];
 }
 
-- (void)toggleDesktopIcons:(NSButton *)sender
-{
-  BOOL show = [sender state] == NSOnState;
-  [[NSUserDefaults standardUserDefaults] setBool:show forKey:@"ShowDesktopIcons"];
-  [desktop setEnabled:show];
-}
-
-- (void)toggleMountedDrives:(NSButton *)sender
-{
-  BOOL show = [sender state] == NSOnState;
-  [[NSUserDefaults standardUserDefaults] setBool:show forKey:@"ShowMountedDrives"];
-  [desktop setShowMountedDrives:show];
-}
-
 - (void)toggleThumbnails:(id)sender
 {
   [[NSUserDefaults standardUserDefaults] setBool:[sender state] == NSOnState
                                          forKey:@"ShowThumbnails"];
   [[NSNotificationCenter defaultCenter] postNotificationName:@"FVThumbnailPreferencesChanged"
-                                                    object:self];
-}
-
-- (void)toggleFilenameTooltips:(id)sender
-{
-  [[NSUserDefaults standardUserDefaults] setBool:[sender state] == NSOnState
-                                         forKey:@"ShowFilenameTooltips"];
-  [[NSNotificationCenter defaultCenter] postNotificationName:@"FVFilenameTooltipsChanged"
-                                                    object:self];
-}
-
-- (void)toggleRunFilesystems:(id)sender
-{
-  [[NSUserDefaults standardUserDefaults] setBool:[sender state] == NSOnState
-                                         forKey:@"ExcludeRunFilesystems"];
-  [[NSNotificationCenter defaultCenter] postNotificationName:@"FVLocationPreferencesChanged"
                                                     object:self];
 }
 
@@ -420,16 +294,9 @@ FVCreateStandardUserFolders (void)
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
-  [desktop setEnabled:NO];
-  [desktop setShowMountedDrives:NO];
-  RELEASE (desktop);
-  RELEASE (desktopCheckbox);
-  RELEASE (mountedDrivesCheckbox);
   RELEASE (backgroundColorWell);
   RELEASE (hiddenFilesCheckbox);
-  RELEASE (excludeRunCheckbox);
   RELEASE (thumbnailCheckbox);
-  RELEASE (filenameTooltipCheckbox);
   RELEASE (preferencesPanel);
   RELEASE (windows);
   RELEASE (pendingPaths);

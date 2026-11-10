@@ -20,7 +20,6 @@
 #import <AppKit/AppKit.h>
 #import "FVApplication.h"
 #import "FVWindow.h"
-#import "FVDesktop.h"
 
 @interface FVWindow (AppearanceTesting)
 
@@ -71,44 +70,8 @@ main (void)
   Capture ([[first window] contentView], @"obj/tests/appearance-icons.png");
   [second columnMode:nil];
   Capture ([[second window] contentView], @"obj/tests/appearance-columns.png");
-  id oldDesktopPreference = RETAIN ([defaults objectForKey:@"ShowDesktopIcons"]);
-  [defaults removeObjectForKey:@"ShowDesktopIcons"];
-  id oldMountedPreference = RETAIN ([defaults objectForKey:@"ShowMountedDrives"]);
-  [defaults removeObjectForKey:@"ShowMountedDrives"];
   FVApplication *app = [[FVApplication alloc] init];
-  FVDesktop *desktop = AUTORELEASE ([[FVDesktop alloc] initWithDirectory:@"/nonexistent-fileviewer-desktop-test"]);
-  [app setValue:desktop forKey:@"desktop"];
   [app preferences:nil];
-  NSButton *desktopCheckbox = [app valueForKey:@"desktopCheckbox"];
-  CHECK ([desktopCheckbox state] == NSOffState);
-  CHECK ([[desktop valueForKey:@"iconWindows"] count] == 0);
-  [desktopCheckbox setState:NSOnState];
-  [NSApp sendAction:[desktopCheckbox action] to:[desktopCheckbox target] from:desktopCheckbox];
-  CHECK ([defaults boolForKey:@"ShowDesktopIcons"]);
-  CHECK ([[desktop valueForKey:@"enabled"] boolValue]);
-  [desktopCheckbox setState:NSOffState];
-  [NSApp sendAction:[desktopCheckbox action] to:[desktopCheckbox target] from:desktopCheckbox];
-  CHECK (![defaults boolForKey:@"ShowDesktopIcons"]);
-  CHECK ([[desktop valueForKey:@"iconWindows"] count] == 0);
-  if (oldDesktopPreference) [defaults setObject:oldDesktopPreference forKey:@"ShowDesktopIcons"];
-  else [defaults removeObjectForKey:@"ShowDesktopIcons"];
-  RELEASE (oldDesktopPreference);
-  NSButton *mountedCheckbox = [app valueForKey:@"mountedDrivesCheckbox"];
-  CHECK ([mountedCheckbox state] == NSOffState);
-  [mountedCheckbox setState:NSOnState];
-  [NSApp sendAction:[mountedCheckbox action] to:[mountedCheckbox target] from:mountedCheckbox];
-  CHECK ([defaults boolForKey:@"ShowMountedDrives"]);
-  CHECK ([[desktop valueForKey:@"showMountedDrives"] boolValue]);
-  CHECK (![[desktop valueForKey:@"enabled"] boolValue]);
-  [app preferences:nil];
-  CHECK ([mountedCheckbox state] == NSOnState);
-  [mountedCheckbox setState:NSOffState];
-  [NSApp sendAction:[mountedCheckbox action] to:[mountedCheckbox target] from:mountedCheckbox];
-  CHECK (![defaults boolForKey:@"ShowMountedDrives"]);
-  CHECK ([[desktop valueForKey:@"iconWindows"] count] == 0);
-  if (oldMountedPreference) [defaults setObject:oldMountedPreference forKey:@"ShowMountedDrives"];
-  else [defaults removeObjectForKey:@"ShowMountedDrives"];
-  RELEASE (oldMountedPreference);
   NSColorWell *well = [app valueForKey:@"backgroundColorWell"];
   CHECK ([[well color] isEqual:FVViewerBackgroundColor ()]);
   Capture ([[app valueForKey:@"preferencesPanel"] contentView], @"obj/tests/appearance-preferences.png");

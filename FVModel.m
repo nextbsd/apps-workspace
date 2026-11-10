@@ -38,8 +38,7 @@ NSString * const FVRecentsLocation = @"fileviewer:recents";
 BOOL
 FVFilenameTooltipsEnabled (void)
 {
-  id value = [[NSUserDefaults standardUserDefaults] objectForKey:@"ShowFilenameTooltips"];
-  return value == nil || [value boolValue];
+  return NO;
 }
 
 BOOL
