@@ -8,5 +8,8 @@ FileViewer_HEADER_FILES = FVDesktop.h FVDesktopLayout.h FVApplication.h FVWindow
 FileViewer_RESOURCE_FILES = Resources/FileViewer.png Resources/HardDisk.tiff
 FileViewer_APPLICATION_ICON = FileViewer.png
 FileViewer_OBJCFLAGS = -Wall -Wextra -Wno-unused-parameter
-ADDITIONAL_GUI_LIBS += -lmount -lX11 -lXext
+ADDITIONAL_GUI_LIBS += -lX11 -lXext
+ifneq (,$(findstring linux,$(GNUSTEP_TARGET_OS)))
+ADDITIONAL_GUI_LIBS += -lmount
+endif
 include $(GNUSTEP_MAKEFILES)/application.make

@@ -20,7 +20,13 @@
 #define _GNU_SOURCE 1
 #import "FVModel.h"
 #include <sys/stat.h>
+#ifdef __linux__
 #include <libmount/libmount.h>
+#else
+#include <sys/param.h>
+#include <sys/ucred.h>
+#include <sys/mount.h>
+#endif
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -54,6 +60,7 @@ FVExcludeRunFilesystems (void)
 + (NSArray *)networkPathsFromMountTable:(NSString *)filename
 {
   NSMutableSet *paths = [NSMutableSet set];
+#ifdef __linux__
   struct libmnt_table *table = mnt_new_table ();
   struct libmnt_iter *iterator = mnt_new_iter (MNT_ITER_BACKWARD);
   if (table && iterator
@@ -86,6 +93,17 @@ FVExcludeRunFilesystems (void)
     }
   mnt_free_iter (iterator);
   mnt_free_table (table);
+#else
+  /* BSD has no mount table file to parse, so filename is ignored here. */
+  struct statfs *mounts;
+  int count = getmntinfo (&mounts, MNT_NOWAIT);
+  for (int i = 0; i < count; i++)
+    if (!(mounts[i].f_flags & MNT_LOCAL) && strcmp (mounts[i].f_fstypename, "devfs")
+        && strcmp (mounts[i].f_fstypename, "fdescfs"))
+      [paths addObject:[[NSFileManager defaultManager]
+                           stringWithFileSystemRepresentation:mounts[i].f_mntonname
+                                                       length:strlen (mounts[i].f_mntonname)]];
+#endif
   return [[paths allObjects] sortedArrayUsingSelector:@selector (compare:)];
 }
 

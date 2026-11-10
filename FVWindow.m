@@ -1179,7 +1179,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
                                                  common, @"children", nil],
       [NSDictionary dictionaryWithObjectsAndKeys:@"Favorites", @"title",
                                                  favorites, @"children", nil],
-      [NSDictionary dictionaryWithObjectsAndKeys:@"Mounted", @"title",
+      [NSDictionary dictionaryWithObjectsAndKeys:@"/Volumes", @"title",
                                                  mounted, @"children", nil],
       [NSDictionary dictionaryWithObjectsAndKeys:@"Network", @"title",
                                                  network, @"children", nil], nil];
