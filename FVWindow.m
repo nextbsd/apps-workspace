@@ -1852,7 +1852,10 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
     }
   if ([value isEqual:@"/Local"] || [value isEqual:@"/Network"])
     {
-      NSImage *domainIcon = [NSImage imageNamed:@"common_GSFolder"];
+      NSImage *domainIcon = [NSImage imageNamed:[value isEqual:@"/Local"]
+          ? @"common_LocalFolder" : @"common_NetworkFolder"];
+      if (!domainIcon)
+        domainIcon = [NSImage imageNamed:@"common_GSFolder"];
       if (domainIcon)
         return domainIcon;
     }
