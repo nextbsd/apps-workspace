@@ -1061,6 +1061,10 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
               AUTORELEASE ([[NSTableColumn alloc] initWithIdentifier:[keys objectAtIndex:i]]);
           [[column headerCell] setStringValue:[titles objectAtIndex:i]];
           [column setWidth:i == 0 ? 250 : (i == 3 || i == 5 ? 210 : 110)];
+          /* NSTableColumn is editable by default, and a double-click on an
+             editable column starts editing instead of sending the double
+             action, so nothing opened unless Return was pressed. */
+          [column setEditable:NO];
           [[column dataCell] setEditable:NO];
           [[column dataCell] setSelectable:NO];
           [[column dataCell] setBordered:NO];
