@@ -63,6 +63,7 @@ NSColor *FVViewerTextColor (void);
   NSPoint savedScroll;
   NSTimer *monitor;
   NSDictionary *lastStamp;
+  NSTimeInterval lastAutoRefresh;
   NSString *spaceDescription;
   BOOL monitorBusy;
   BOOL hidden;

@@ -25,6 +25,12 @@
 #import "FVThumbnails.h"
 #include <sys/statvfs.h>
 #include <sys/stat.h>
+#ifndef __linux__
+#include <sys/param.h>
+#include <sys/ucred.h>
+#include <sys/mount.h>
+#endif
+#include <dirent.h>
 
 NSColor *
 FVViewerBackgroundColor (void)
@@ -127,7 +133,9 @@ FVVisibleLocationPaths (NSArray *paths)
   return visible;
 }
 
-/* A folder in a mount root is a volume only if it is on a different device. */
+/* A volume is a mount point directly inside a mount root. On the BSDs the
+   mount table is read without waiting, and nothing is stat'ed, so a hung
+   network mount can't block the main thread, which polls this every second. */
 static NSArray *
 FVVolumesInMountRoots (void)
 {
@@ -135,6 +143,7 @@ FVVolumesInMountRoots (void)
   NSArray *roots = [NSArray arrayWithObjects:@"/Volumes", @"/media",
       [@"/media" stringByAppendingPathComponent:NSUserName ()],
       [@"/run/media" stringByAppendingPathComponent:NSUserName ()], nil];
+#ifdef __linux__
   NSUInteger i;
   for (i = 0; i < [roots count]; i++)
     {
@@ -156,7 +165,40 @@ FVVolumesInMountRoots (void)
           [found addObject:full];
         }
     }
+#else
+  struct statfs *mounts;
+  int count = getmntinfo (&mounts, MNT_NOWAIT);
+  int m;
+  for (m = 0; m < count; m++)
+    {
+      NSString *full = [[NSFileManager defaultManager]
+          stringWithFileSystemRepresentation:mounts[m].f_mntonname
+                                      length:strlen (mounts[m].f_mntonname)];
+      if ([roots containsObject:[full stringByDeletingLastPathComponent]]
+          && ![[full lastPathComponent] hasPrefix:@"."] && ![found containsObject:full])
+        [found addObject:full];
+    }
+#endif
   return [found sortedArrayUsingSelector:@selector (caseInsensitiveCompare:)];
+}
+
+/* Whether / holds a folder with this name. Reading / never enters a filesystem
+   mounted on the entry, unlike stat, so an autofs or NFS mount at /Network
+   whose server is down can't block the sidebar. */
+static BOOL
+FVRootHasFolder (NSString *name)
+{
+  DIR *root = opendir ("/");
+  struct dirent *entry;
+  BOOL found = NO;
+  if (!root)
+    return NO;
+  while (!found && (entry = readdir (root)))
+    if ((entry->d_type == DT_DIR || entry->d_type == DT_LNK)
+        && !strcmp (entry->d_name, [name fileSystemRepresentation]))
+      found = YES;
+  closedir (root);
+  return found;
 }
 
 static NSString *
@@ -1215,8 +1257,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   NSMutableArray *domains = [NSMutableArray array];
   NSArray *domainPaths = [NSArray arrayWithObjects:@"/Local", @"/Network", @"/System", nil];
   for (i = 0; i < [domainPaths count]; i++)
-    if ([[NSFileManager defaultManager] fileExistsAtPath:[domainPaths objectAtIndex:i]
-                                             isDirectory:&isDirectory] && isDirectory)
+    if (FVRootHasFolder ([[domainPaths objectAtIndex:i] lastPathComponent]))
       [domains addObject:[NSDictionary dictionaryWithObjectsAndKeys:
           [domainPaths objectAtIndex:i], @"path", @"domain", @"group", nil]];
   NSString *home = NSHomeDirectory ();
@@ -1224,8 +1265,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       ? @"Network User" : @"Local User";
   NSMutableDictionary *volumesGroup = [NSMutableDictionary dictionaryWithObjectsAndKeys:
       @"Volumes", @"title", mounted, @"children", nil];
-  if ([[NSFileManager defaultManager] fileExistsAtPath:@"/Volumes" isDirectory:&isDirectory]
-      && isDirectory)
+  if (FVRootHasFolder (@"Volumes"))
     [volumesGroup setObject:@"/Volumes" forKey:@"path"];
   BOOL initial = places == nil;
   BOOL commonExpanded = initial || [sidebar isItemExpanded:[places objectAtIndex:0]];
@@ -2698,7 +2738,8 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
     }
   NSDictionary *request = [NSDictionary
       dictionaryWithObjectsAndKeys:path, @"path", [NSNumber numberWithUnsignedInteger:generation],
-                                   @"generation", folders, @"folders", nil];
+                                   @"generation", folders, @"folders",
+                                   [NSNumber numberWithBool:hidden], @"hidden", nil];
   [NSThread detachNewThreadSelector:@selector (readDirectoryStamp:)
                            toTarget:self
                          withObject:request];
@@ -2730,14 +2771,19 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
           continue;
         }
       [entries setObject:FVFileStamp (folder, YES) forKey:@""];
+      /* Only entries that are shown, and never through a symlink: a hidden
+         file that changes all the time, such as ~/.xsession-errors, would
+         otherwise reload the folder every second, and a symlink into a hung
+         mount would stop the monitor. */
+      BOOL showHidden = [[request objectForKey:@"hidden"] boolValue];
       NSArray *names = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:folder error:NULL];
       NSUInteger j;
       for (j = 0; j < [names count]; j++)
         {
           NSString *name = [names objectAtIndex:j];
-          NSString *file = [folder stringByAppendingPathComponent:name];
-          [entries setObject:[NSArray arrayWithObjects:FVFileStamp (file, NO),
-                                                       FVFileStamp (file, YES), nil]
+          if (!showHidden && [name hasPrefix:@"."])
+            continue;
+          [entries setObject:FVFileStamp ([folder stringByAppendingPathComponent:name], NO)
                       forKey:name];
         }
       [snapshots setObject:entries forKey:folder];
@@ -2771,12 +2817,20 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
     if ([previous objectForKey:folder]
         && ![[previous objectForKey:folder] isEqual:[snapshots objectForKey:folder]])
       changed = YES;
+  /* A shown file that keeps changing, such as a log, still reloads the folder
+     at most every few seconds. The old stamp is kept, so the change is
+     picked up once the interval has passed. */
+  if (changed && [NSDate timeIntervalSinceReferenceDate] - lastAutoRefresh < 5)
+    return;
   RELEASE (lastStamp);
   lastStamp = [stamp copy];
   RELEASE (spaceDescription);
   spaceDescription = [[stamp objectForKey:@"space"] copy];
   if (changed)
-    [self refresh:nil];
+    {
+      lastAutoRefresh = [NSDate timeIntervalSinceReferenceDate];
+      [self refresh:nil];
+    }
   else
     [self selectionChanged];
 }
