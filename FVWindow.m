@@ -45,13 +45,24 @@ FVViewerBackgroundColor (void)
       green:[[rgb objectAtIndex:1] doubleValue] blue:[[rgb objectAtIndex:2] doubleValue] alpha:1];
 }
 
+/* Keep the text colours for the life of the app. libs-gui's table row drawing
+   swaps a selected cell's text colour for the theme's highlight colour without
+   retaining the original, so a cell holding the only reference to an
+   autoreleased colour ends up pointing at freed memory. */
 NSColor *
 FVViewerTextColor (void)
 {
+  static NSColor *white = nil;
+  static NSColor *black = nil;
+  if (!white)
+    {
+      white = RETAIN ([NSColor whiteColor]);
+      black = RETAIN ([NSColor blackColor]);
+    }
   NSColor *color = [FVViewerBackgroundColor () colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
   CGFloat brightness = .299 * [color redComponent] + .587 * [color greenComponent]
                        + .114 * [color blueComponent];
-  return brightness < .5 ? [NSColor whiteColor] : [NSColor blackColor];
+  return brightness < .5 ? white : black;
 }
 
 /* GNUstep's NSBrowser background setter is a stub; its matrices use this getter. */
