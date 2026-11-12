@@ -22,6 +22,9 @@
 
 NSColor *FVViewerBackgroundColor (void);
 NSColor *FVViewerTextColor (void);
+/* An alert panel with a window title, so WindowServer's title bar is not blank. */
+NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
+                      NSString *defaultButton, NSString *alternateButton);
 
 @class FVOperations, FVIconView;
 @interface FVWindow : NSWindowController

@@ -370,6 +370,45 @@ FVCompare (id lhs, id rhs, void *context)
   return [[options objectForKey:@"ascending"] boolValue] ? result : -result;
 }
 
+/* Escape presses the panel's Cancel button, even while a text field edits. */
+@interface FVDialogPanel : NSPanel
+@end
+
+@implementation FVDialogPanel
+
+- (void)sendEvent:(NSEvent *)event
+{
+  if ([event type] == NSKeyDown && [[event charactersIgnoringModifiers] isEqual:@"\e"])
+    {
+      NSArray *views = [[self contentView] subviews];
+      NSUInteger i;
+      for (i = 0; i < [views count]; i++)
+        {
+          id view = [views objectAtIndex:i];
+          if ([view isKindOfClass:[NSButton class]] && [[view keyEquivalent] isEqual:@"\e"])
+            {
+              [view performClick:self];
+              return;
+            }
+        }
+    }
+  [super sendEvent:event];
+}
+
+@end
+
+/* Dialog text stays legible and unselected on light and dark themes: a
+   selectable label becomes first responder and is drawn selected. */
+static NSColor *
+FVDialogTextColor (NSWindow *window)
+{
+  NSColor *background = [[window backgroundColor]
+      colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
+  CGFloat brightness = background ? ([background redComponent] + [background greenComponent]
+                                      + [background blueComponent]) / 3 : 1;
+  return [NSColor colorWithCalibratedWhite:brightness < .5 ? .94 : .12 alpha:1];
+}
+
 /* A small modal panel avoids unsupported NSAlert accessory APIs. */
 @interface FVDialog : NSObject
 {
@@ -407,13 +446,7 @@ FVCompare (id lhs, id rhs, void *context)
       [field removeFromSuperview];
       RELEASE (field);
       field = nil;
-      /* Keep the heading neutral and non-selectable: field-editor selection
-         can otherwise paint it with the theme's red selection foreground. */
-      NSColor *background = [[panel backgroundColor]
-          colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
-      CGFloat brightness = background ? ([background redComponent] + [background greenComponent]
-                                          + [background blueComponent]) / 3 : 1;
-      NSColor *textColor = [NSColor colorWithCalibratedWhite:brightness < .5 ? .94 : .12 alpha:1];
+      NSColor *textColor = FVDialogTextColor (panel);
       NSView *content = [panel contentView];
       NSArray *views = [content subviews];
       NSUInteger j;
@@ -508,17 +541,21 @@ FVCompare (id lhs, id rhs, void *context)
 {
   if ((self = [super init]))
     {
-      panel = [[NSPanel alloc] initWithContentRect:NSMakeRect (0, 0, 620, 230)
-                                         styleMask:NSTitledWindowMask
-                                           backing:NSBackingStoreBuffered
-                                             defer:NO];
+      /* A prompt is one line of text over its field; a choice gets more room. */
+      CGFloat height = value ? 140 : 230;
+      panel = [[FVDialogPanel alloc] initWithContentRect:NSMakeRect (0, 0, 620, height)
+                                               styleMask:NSTitledWindowMask
+                                                 backing:NSBackingStoreBuffered
+                                                   defer:NO];
       [panel setTitle:title];
       NSView *content = [panel contentView];
-      NSTextField *label = FVLabel (NSMakeRect (18, 100, 584, 112), message);
+      NSTextField *label = FVLabel (NSMakeRect (18, 100, 584, height - 118), message);
+      [label setSelectable:NO];
+      [label setTextColor:FVDialogTextColor (panel)];
       [content addSubview:label];
       if (value)
         {
-          field = [[NSTextField alloc] initWithFrame:NSMakeRect (18, 70, 584, 28)];
+          field = [[NSTextField alloc] initWithFrame:NSMakeRect (18, 64, 584, 28)];
           [field setStringValue:value];
           [content addSubview:field];
         }
@@ -539,6 +576,8 @@ FVCompare (id lhs, id rhs, void *context)
           [button setTag:i];
           if (i == 0)
             [button setKeyEquivalent:@"\r"];
+          else if ([[buttons objectAtIndex:i] isEqual:@"Cancel"])
+            [button setKeyEquivalent:@"\e"];
         }
     }
   return self;
@@ -604,15 +643,30 @@ FVCompare (id lhs, id rhs, void *context)
 @end
 
 static NSString *
-FVPrompt (FVWindow *owner, NSString *title, NSString *value)
+FVPrompt (FVWindow *owner, NSString *title, NSString *message, NSString *value)
 {
   FVDialog *dialog = AUTORELEASE (([[FVDialog alloc]
       initWithTitle:title
-            message:title
+            message:message
               value:value ? value : @""
             buttons:[NSArray arrayWithObjects:@"OK", @"Cancel", nil]]));
   return [owner runDialog:dialog] == 0 ? [dialog value] : nil;
 }
+
+NSInteger
+FVRunAlert (NSString *title, NSString *heading, NSString *message, NSString *defaultButton,
+            NSString *alternateButton)
+{
+  NSPanel *panel = NSGetAlertPanel (heading, @"%@", defaultButton, alternateButton, nil, message);
+  [panel setTitle:title];
+  NSInteger result = [NSApp runModalForWindow:panel];
+  [panel orderOut:nil];
+  NSReleaseAlertPanel (panel);
+  return result;
+}
+
+static NSString *const FVInvalidNameMessage
+    = @"A name can’t be empty, contain “/”, or be “.” or “..”.";
 
 @interface FVSidebarView : NSOutlineView
 
@@ -1622,7 +1676,10 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   BOOL directory = NO;
   if (![[NSFileManager defaultManager] fileExistsAtPath:value isDirectory:&directory])
     {
-      NSRunAlertPanel (@"Cannot open", @"%@ no longer exists.", @"OK", nil, nil, value);
+      FVRunAlert (@"Open", @"Can’t Open",
+                  [NSString stringWithFormat:@"“%@” can’t be opened because it no longer exists.",
+                                             [value lastPathComponent]],
+                  @"OK", nil);
       return;
     }
   NSString *extension = [[value pathExtension] lowercaseString];
@@ -2000,7 +2057,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 
 - (void)go:(id)sender
 {
-  NSString *value = FVPrompt (self, @"Go to Folder (absolute path or ~)",
+  NSString *value = FVPrompt (self, @"Go to Folder", @"Enter a folder path, or ~ for your home:",
                              [path isEqual:FVRecentsLocation] ? NSHomeDirectory () : path);
   if (value)
     [self navigate:value];
@@ -2035,13 +2092,12 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 {
   if ([path isEqual:FVRecentsLocation])
     return;
-  NSString *name = FVPrompt (self, @"New Folder", @"Untitled Folder");
+  NSString *name = FVPrompt (self, @"New Folder", @"Name of the new folder:", @"Untitled Folder");
   if (!name)
     return;
   if (![FVOperations validName:name])
     {
-      NSRunAlertPanel (@"Invalid name", @"Use a single nonempty filename, without /, . or ..",
-                       @"OK", nil, nil);
+      FVRunAlert (@"New Folder", @"Invalid Name", FVInvalidNameMessage, @"OK", nil);
       return;
     }
   [self runOperation:@"mkdir"
@@ -2055,13 +2111,15 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   if ([selected count] != 1)
     return;
   NSString *source = [selected objectAtIndex:0];
-  NSString *name = FVPrompt (self, @"Rename", [source lastPathComponent]);
+  NSString *name = FVPrompt (self, @"Rename",
+                             [NSString stringWithFormat:@"New name for “%@”:",
+                                                        [source lastPathComponent]],
+                             [source lastPathComponent]);
   if (!name)
     return;
   if (![FVOperations validName:name])
     {
-      NSRunAlertPanel (@"Invalid name", @"Use a single nonempty filename, without /, . or ..",
-                       @"OK", nil, nil);
+      FVRunAlert (@"Rename", @"Invalid Name", FVInvalidNameMessage, @"OK", nil);
       return;
     }
   [self runOperation:@"rename"
@@ -2218,7 +2276,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 
 - (void)moveTo:(id)sender
 {
-  NSString *value = FVPrompt (self, @"Move selected files to folder",
+  NSString *value = FVPrompt (self, @"Move To", @"Move the selected items to this folder:",
                              [path isEqual:FVRecentsLocation] ? NSHomeDirectory () : path);
   if (value)
     [self runOperation:@"move"
@@ -2234,12 +2292,28 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 - (void)deletePermanently:(id)sender
 {
   NSArray *selected = [self selectedPaths];
-  if ([selected count]
-      && NSRunAlertPanel (@"Permanently delete?",
-                          @"This cannot be undone. Delete these paths and all contents?\n%@",
-                          @"Cancel", @"Delete Permanently", nil,
-                          [selected componentsJoinedByString:@"\n"])
-             == NSAlertAlternateReturn)
+  NSUInteger count = [selected count];
+  if (!count)
+    return;
+  NSString *heading, *message = @"This can’t be undone.";
+  if (count == 1)
+    heading = [NSString stringWithFormat:@"Delete “%@” permanently?",
+                                         [[selected objectAtIndex:0] lastPathComponent]];
+  else
+    {
+      heading = [NSString stringWithFormat:@"Delete %lu items permanently?", (unsigned long)count];
+      NSMutableArray *names = [NSMutableArray array];
+      NSUInteger i, shown = count > 8 ? 7 : count;
+      for (i = 0; i < shown; i++)
+        [names addObject:[[selected objectAtIndex:i] lastPathComponent]];
+      if (shown < count)
+        [names addObject:[NSString stringWithFormat:@"and %lu more", (unsigned long)(count - shown)]];
+      message = [NSString stringWithFormat:@"%@\n\n%@", message,
+                                           [names componentsJoinedByString:@"\n"]];
+    }
+  /* Cancel stays the default button. */
+  if (FVRunAlert (@"Delete Permanently", heading, message, @"Cancel", @"Delete")
+      == NSAlertAlternateReturn)
     [self runOperation:@"delete" paths:selected destination:nil];
 }
 
@@ -2258,9 +2332,8 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       id source = [sources objectAtIndex:sourceIndex];
       if (![source isKindOfClass:[NSString class]] || ![source isAbsolutePath])
         {
-          NSRunAlertPanel (@"Invalid file list",
-                           @"The pasteboard must contain absolute filesystem paths.", @"OK", nil,
-                           nil);
+          FVRunAlert (@"Workspace", @"Can’t Paste", @"The copied items can’t be pasted here.",
+                      @"OK", nil);
           return;
         }
     }
@@ -2338,12 +2411,15 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       return;
     }
   FVDialog *dialog = AUTORELEASE (([[FVDialog alloc]
-      initWithTitle:@"Destination already exists"
+      initWithTitle:@"Item Already Exists"
             message:[NSString
                         stringWithFormat:
-                            @"%@\nReplace preserves the old item beside the destination as "
-                            @"‘Workspace replaced item…’. Directories are replaced, never merged.",
-                            [request objectForKey:@"destination"]]
+                            @"An item named “%@” already exists in “%@”.\n\nReplace keeps the "
+                            @"old item beside it as “Workspace replaced item…”. Folders are "
+                            @"replaced, never merged.",
+                            [[request objectForKey:@"destination"] lastPathComponent],
+                            [[[request objectForKey:@"destination"]
+                                stringByDeletingLastPathComponent] lastPathComponent]]
               value:nil
             buttons:[NSArray arrayWithObjects:@"Keep Both", @"Skip", @"Replace", @"Cancel", nil]]));
   NSInteger choice = [self runDialog:dialog];
@@ -2701,7 +2777,9 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   if ([path isEqual:FVRecentsLocation])
     return;
   NSString *query
-      = FVPrompt (self, @"Recursive filename search (does not search contents)", [filter stringValue]);
+      = FVPrompt (self, @"Recursive Filename Search",
+                  @"Find items in this folder and its subfolders whose names contain:",
+                  [filter stringValue]);
   if (query)
     {
       [filter setStringValue:query];
