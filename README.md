@@ -101,10 +101,8 @@ Inspected development environment:
 - List view has name/icons, byte size, kind, modification time, permissions and
   full path. Click headers to sort or reverse sorting. Folders First is optional.
   Arrow keys navigate, typing selects by prefix, Return/double-click opens.
-- File backgrounds default to a shade darker than the window background in list,
-  icon, and column views. Preferences →
-  File viewer background lets you choose a persistent color for all open windows;
-  filename text adjusts automatically for contrast.
+- File backgrounds are a shade darker than the window background in list,
+  icon, and column views, following the theme.
 - Preferences → Show hidden files and directories reveals dot-prefixed files
   and folders in list, column and icon views. It is off by default, remembers
   your choice, and updates all open windows immediately. The View → Show Hidden

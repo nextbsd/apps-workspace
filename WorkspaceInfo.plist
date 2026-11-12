@@ -2,15 +2,13 @@
   ApplicationName = Workspace;
   ApplicationDescription = "The NextBSD workspace and file viewer";
   ApplicationRelease = "27.0";
-  Authors = (
-    "Joseph Maloney <pkgdemonteam@gmail.com>",
-    "",
-    "Based on FileViewer by:",
-    "Gregory John Casamento <greg.casamento@gmail.com>"
-  );
-  Copyright = "Copyright (C) 2026 Joseph Maloney\nBased on FileViewer, Copyright (C) 2026 Gregory John Casamento";
-  CopyrightDescription = "GNU General Public License version 3 or later; no warranty.";
-  NSHumanReadableCopyright = "Copyright (C) 2026 Joseph Maloney\nBased on FileViewer, Copyright (C) 2026 Gregory John Casamento";
+  Authors = ("Joseph Maloney <pkgdemonteam@gmail.com>");
+  /* GNUstep's info panel lines URL up under "Author:", and centres each
+     of Copyright and CopyrightDescription only as a single line. */
+  URL = "License: GNU GPL version 3 or later; no warranty";
+  Copyright = "Copyright (C) 2026 Joseph Maloney";
+  CopyrightDescription = "Based on FileViewer, Copyright (C) 2026 Gregory John Casamento";
+  NSHumanReadableCopyright = "Copyright (C) 2026 Joseph Maloney. Based on FileViewer, Copyright (C) 2026 Gregory John Casamento";
   NSPrincipalClass = NSApplication;
   NSIcon = "Workspace.png";
   CFBundleIconFile = "Workspace.png";

@@ -236,18 +236,18 @@ FVMigrateFileViewerDefaults (void)
   if (!preferencesPanel)
     {
       preferencesPanel = [[NSPanel alloc]
-          initWithContentRect:NSMakeRect (0, 0, 430, 220)
+          initWithContentRect:NSMakeRect (0, 0, 430, 160)
                     styleMask:NSTitledWindowMask | NSClosableWindowMask
                       backing:NSBackingStoreBuffered defer:NO];
       [preferencesPanel setTitle:@"Preferences"];
       [preferencesPanel setReleasedWhenClosed:NO];
-      thumbnailCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 166, 390, 28)];
+      thumbnailCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 106, 390, 28)];
       [thumbnailCheckbox setButtonType:NSSwitchButton];
       [thumbnailCheckbox setTitle:@"Show thumbnails"];
       [thumbnailCheckbox setTarget:self];
       [thumbnailCheckbox setAction:@selector (toggleThumbnails:)];
       [[preferencesPanel contentView] addSubview:thumbnailCheckbox];
-      hiddenFilesCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 126, 390, 28)];
+      hiddenFilesCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 66, 390, 28)];
       [hiddenFilesCheckbox setButtonType:NSSwitchButton];
       [hiddenFilesCheckbox setTitle:@"Show hidden files and directories"];
       [hiddenFilesCheckbox setTarget:self];
@@ -255,21 +255,8 @@ FVMigrateFileViewerDefaults (void)
       [[preferencesPanel contentView] addSubview:hiddenFilesCheckbox];
       [[NSNotificationCenter defaultCenter] addObserver:self
           selector:@selector (hiddenFilesPreferencesChanged:) name:@"FVHiddenFilesChanged" object:nil];
-      NSTextField *colorLabel = AUTORELEASE ([[NSTextField alloc]
-          initWithFrame:NSMakeRect (24, 78, 260, 24)]);
-      [colorLabel setStringValue:@"File viewer background:"];
-      [colorLabel setEditable:NO];
-      [colorLabel setSelectable:NO];
-      [colorLabel setBordered:NO];
-      [colorLabel setBezeled:NO];
-      [colorLabel setDrawsBackground:NO];
-      [[preferencesPanel contentView] addSubview:colorLabel];
-      backgroundColorWell = [[NSColorWell alloc] initWithFrame:NSMakeRect (310, 74, 90, 30)];
-      [backgroundColorWell setTarget:self];
-      [backgroundColorWell setAction:@selector (changeBackgroundColor:)];
-      [[preferencesPanel contentView] addSubview:backgroundColorWell];
       NSTextField *label = AUTORELEASE ([[NSTextField alloc]
-          initWithFrame:NSMakeRect (24, 20, 380, 45)]);
+          initWithFrame:NSMakeRect (24, 20, 380, 24)]);
       [label setStringValue:@"Changes apply to all open windows."];
       [label setEditable:NO];
       [label setSelectable:NO];
@@ -280,23 +267,8 @@ FVMigrateFileViewerDefaults (void)
       [preferencesPanel center];
     }
   [thumbnailCheckbox setState:[FVThumbnailOperation enabled] ? NSOnState : NSOffState];
-  [backgroundColorWell setColor:FVViewerBackgroundColor ()];
   [self hiddenFilesPreferencesChanged:nil];
   [preferencesPanel makeKeyAndOrderFront:self];
-}
-
-- (void)changeBackgroundColor:(NSColorWell *)sender
-{
-  NSColor *color = [[sender color] colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
-  if (!color)
-    return;
-  [[NSUserDefaults standardUserDefaults] setObject:[NSArray arrayWithObjects:
-      [NSNumber numberWithDouble:[color redComponent]],
-      [NSNumber numberWithDouble:[color greenComponent]],
-      [NSNumber numberWithDouble:[color blueComponent]], nil] forKey:@"ViewerBackgroundColor"];
-  [sender setColor:FVViewerBackgroundColor ()];
-  [[NSNotificationCenter defaultCenter] postNotificationName:@"FVAppearancePreferencesChanged"
-                                                    object:self];
 }
 
 - (void)toggleThumbnails:(id)sender
@@ -322,7 +294,6 @@ FVMigrateFileViewerDefaults (void)
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
-  RELEASE (backgroundColorWell);
   RELEASE (hiddenFilesCheckbox);
   RELEASE (thumbnailCheckbox);
   RELEASE (preferencesPanel);

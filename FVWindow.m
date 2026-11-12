@@ -32,23 +32,13 @@
 #endif
 #include <dirent.h>
 
+/* The viewer background follows the theme; it is not a preference. A
+   ViewerBackgroundColor saved by older versions is ignored. */
 NSColor *
 FVViewerBackgroundColor (void)
 {
-  NSColor *defaultColor = [[NSColor windowBackgroundColor]
+  return [[NSColor windowBackgroundColor]
       blendedColorWithFraction:.1 ofColor:[NSColor blackColor]];
-  NSArray *rgb = [[NSUserDefaults standardUserDefaults] arrayForKey:@"ViewerBackgroundColor"];
-  if ([rgb count] != 3)
-    return defaultColor;
-  NSUInteger i;
-  for (i = 0; i < 3; i++)
-    if (![[rgb objectAtIndex:i] isKindOfClass:[NSNumber class]]
-        || !isfinite ([[rgb objectAtIndex:i] doubleValue])
-        || [[rgb objectAtIndex:i] doubleValue] < 0
-        || [[rgb objectAtIndex:i] doubleValue] > 1)
-      return defaultColor;
-  return [NSColor colorWithCalibratedRed:[[rgb objectAtIndex:0] doubleValue]
-      green:[[rgb objectAtIndex:1] doubleValue] blue:[[rgb objectAtIndex:2] doubleValue] alpha:1];
 }
 
 /* Keep the text colours for the life of the app. libs-gui's table row drawing

@@ -28,7 +28,6 @@
   NSPanel *preferencesPanel;
   NSButton *thumbnailCheckbox;
   NSButton *hiddenFilesCheckbox;
-  NSColorWell *backgroundColorWell;
 }
 
 - (BOOL)openFile:(NSString *)path withApplication:(NSString *)application

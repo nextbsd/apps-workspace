@@ -72,23 +72,23 @@ main (void)
   Capture ([[second window] contentView], @"obj/tests/appearance-columns.png");
   FVApplication *app = [[FVApplication alloc] init];
   [app preferences:nil];
-  NSColorWell *well = [app valueForKey:@"backgroundColorWell"];
-  CHECK ([[well color] isEqual:FVViewerBackgroundColor ()]);
+  /* The background is not a preference: no colour well, and a colour
+     saved by an older version is ignored. */
+  CHECK ([[[app valueForKey:@"preferencesPanel"] contentView] subviews] != nil);
+  NSEnumerator *e = [[[[app valueForKey:@"preferencesPanel"] contentView] subviews] objectEnumerator];
+  NSView *v;
+  while ((v = [e nextObject]) != nil)
+    CHECK (![v isKindOfClass:[NSColorWell class]]);
   Capture ([[app valueForKey:@"preferencesPanel"] contentView], @"obj/tests/appearance-preferences.png");
-  [well setColor:[NSColor whiteColor]];
-  [NSApp sendAction:[well action] to:[well target] from:well];
-  CHECK ([FVViewerTextColor () isEqual:[NSColor blackColor]]);
-  CHECK ([[[first valueForKey:@"table"] backgroundColor] isEqual:FVViewerBackgroundColor ()]);
-  NSBrowser *browser = [second valueForKey:@"browser"];
-  CHECK ([[[browser matrixInColumn:0] backgroundColor] isEqual:FVViewerBackgroundColor ()]);
-  CHECK ([[[[first valueForKey:@"scroll"] contentView] backgroundColor] isEqual:FVViewerBackgroundColor ()]);
-  [[app valueForKey:@"preferencesPanel"] close];
-  [app preferences:nil];
-  CHECK ([[well color] isEqual:FVViewerBackgroundColor ()]);
-  FVWindow *third = [[FVWindow alloc] initWithPath:@"/tmp"];
-  CHECK ([[[third valueForKey:@"table"] backgroundColor] isEqual:FVViewerBackgroundColor ()]);
-  [defaults setObject:[NSArray arrayWithObject:@"invalid"] forKey:@"ViewerBackgroundColor"];
+  [defaults setObject:[NSArray arrayWithObjects:[NSNumber numberWithDouble:1],
+      [NSNumber numberWithDouble:1], [NSNumber numberWithDouble:1], nil]
+               forKey:@"ViewerBackgroundColor"];
   CHECK ([FVViewerBackgroundColor () isEqual:defaultColor]);
+  FVWindow *third = [[FVWindow alloc] initWithPath:@"/tmp"];
+  CHECK ([[[third valueForKey:@"table"] backgroundColor] isEqual:defaultColor]);
+  NSBrowser *browser = [second valueForKey:@"browser"];
+  CHECK ([[[browser matrixInColumn:0] backgroundColor] isEqual:defaultColor]);
+  [defaults removeObjectForKey:@"ViewerBackgroundColor"];
   NSLog (@"Appearance smoke passed");
   RELEASE (pool);
   return 0;
