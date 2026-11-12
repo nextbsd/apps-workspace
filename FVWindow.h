@@ -98,6 +98,8 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
 - (void)openPath:(NSString *)value;
 - (void)rename:(id)sender;
 - (void)selectionChanged;
+/* The context menu for the selected items, or nil when nothing is selected. */
+- (NSMenu *)itemMenu;
 - (NSImage *)iconForPath:(NSString *)value;
 - (BOOL)allowsFileDrop;
 - (void)runOperation:(NSString *)kind paths:(NSArray *)sources destination:(NSString *)destination;
