@@ -24,6 +24,7 @@ NSString *const FVDesktopSettingsChangedNotification = @"org.nextbsd.DesktopSett
 
 static NSString *const FVMinimizeStyleKey = @"NBMinimizeStyle";
 static NSString *const FVDockPositionKey = @"NBDockPosition";
+static NSString *const FVMenuStyleKey = @"NBMenuStyle";
 
 /* DockWM keeps its own placement, DockPlacement in its defaults domain, as
    its DockPlacement enumeration: left top, left centre, right top, right
@@ -42,8 +43,7 @@ enum
 
 /* The settings shown here: their values (in menu order), the titles for
    them, and the built-in default. Window mode (NBWindowMode: stacking,
-   tiling) and menu style (NBMenuStyle: nextstep, inwindow, macmenubar)
-   join this tab once tiling and the other menu styles exist. */
+   tiling) joins this tab once tiling exists. */
 static NSArray *
 FVAllowedValues (NSString *key)
 {
@@ -51,6 +51,8 @@ FVAllowedValues (NSString *key)
     return [NSArray arrayWithObjects:@"nextstep", @"previews", @"dock", nil];
   if ([key isEqual:FVDockPositionKey])
     return [NSArray arrayWithObjects:@"right", @"left", @"top", @"bottom", nil];
+  if ([key isEqual:FVMenuStyleKey])
+    return [NSArray arrayWithObjects:@"nextstep", @"inwindow", @"macmenubar", nil];
   return nil;
 }
 
@@ -62,6 +64,8 @@ FVValueTitles (NSString *key)
                                      @"Into the Dock", nil];
   if ([key isEqual:FVDockPositionKey])
     return [NSArray arrayWithObjects:@"Right", @"Left", @"Top", @"Bottom", nil];
+  if ([key isEqual:FVMenuStyleKey])
+    return [NSArray arrayWithObjects:@"NeXT", @"In-window", @"Mac menu bar", nil];
   return nil;
 }
 
@@ -72,6 +76,8 @@ FVBuiltinValue (NSString *key)
     return @"previews";
   if ([key isEqual:FVDockPositionKey])
     return @"right";
+  if ([key isEqual:FVMenuStyleKey])
+    return @"nextstep";
   return nil;
 }
 
@@ -130,7 +136,7 @@ FVLabel (NSRect frame, NSString *text)
   NSPopUpButton *popUp = [[NSPopUpButton alloc] initWithFrame:frame pullsDown:NO];
   [popUp setTarget:self];
   [popUp setAction:@selector (choose:)];
-  [popUp setTag:[key isEqual:FVMinimizeStyleKey] ? 1 : 2];
+  [popUp setTag:[key isEqual:FVMinimizeStyleKey] ? 1 : [key isEqual:FVDockPositionKey] ? 2 : 3];
   [view addSubview:popUp];
   return popUp;
 }
@@ -157,9 +163,18 @@ FVLabel (NSRect frame, NSString *text)
   dockPopUp = [self popUpForKey:FVDockPositionKey
                           frame:NSMakeRect (popUpX, top - 88, popUpWidth, 26)];
 
+  /* NeXT floating menus with tear-off, a menu in every window, or a Mac
+     menu bar along the top; running apps switch at once (the NextBSD
+     backend, libs-back#3). */
+  label = FVLabel (NSMakeRect (20, top - 129, labelWidth, 22), @"Menu style:");
+  [label setAlignment:NSRightTextAlignment];
+  [view addSubview:label];
+  menuPopUp = [self popUpForKey:FVMenuStyleKey
+                          frame:NSMakeRect (popUpX, top - 128, popUpWidth, 26)];
+
   [view addSubview:FVLabel (NSMakeRect (20, 12, NSWidth (frame) - 40, 36),
-                            @"The theme sets the defaults. Minimize applies to windows\n"
-                            @"minimized from now on.")];
+                            @"The theme sets the defaults. The menu style changes at once\n"
+                            @"in running apps; minimize applies to windows minimized from now on.")];
 
   /* The theme's defaults show in the "Use theme default" items. */
   [[NSNotificationCenter defaultCenter] addObserver:self
@@ -177,7 +192,15 @@ FVLabel (NSRect frame, NSString *text)
 
 - (NSString *)keyForPopUp:(NSPopUpButton *)popUp
 {
-  return [popUp tag] == 1 ? FVMinimizeStyleKey : FVDockPositionKey;
+  switch ([popUp tag])
+    {
+    case 1:
+      return FVMinimizeStyleKey;
+    case 2:
+      return FVDockPositionKey;
+    default:
+      return FVMenuStyleKey;
+    }
 }
 
 /* "Use theme default (…)" first, then each value. */
@@ -207,6 +230,7 @@ FVLabel (NSRect frame, NSString *text)
   [[NSUserDefaults standardUserDefaults] synchronize];
   [self fillPopUp:minimizePopUp];
   [self fillPopUp:dockPopUp];
+  [self fillPopUp:menuPopUp];
 }
 
 - (void)themeDidActivate:(NSNotification *)note
@@ -282,6 +306,7 @@ FVLabel (NSRect frame, NSString *text)
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   RELEASE (minimizePopUp);
   RELEASE (dockPopUp);
+  RELEASE (menuPopUp);
   RELEASE (view);
   DEALLOC;
 }

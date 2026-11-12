@@ -92,6 +92,14 @@ FVMigrateFileViewerDefaults (void)
   [defaults synchronize];
 }
 
+/* Workspace keeps running with no File Viewer open. libs-gui quits an app
+   whose last window closes in the in-window menu style (Windows'
+   convention) unless its delegate says otherwise. */
+- (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)app
+{
+  return NO;
+}
+
 - (void)applicationWillTerminate:(NSNotification *)note
 {
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
@@ -299,7 +307,7 @@ FVMigrateFileViewerDefaults (void)
   if (!preferencesPanel)
     {
       preferencesPanel = [[NSPanel alloc]
-          initWithContentRect:NSMakeRect (0, 0, 540, 230)
+          initWithContentRect:NSMakeRect (0, 0, 540, 270)
                     styleMask:NSTitledWindowMask | NSClosableWindowMask
                       backing:NSBackingStoreBuffered defer:NO];
       [preferencesPanel setTitle:@"Preferences"];
@@ -307,7 +315,7 @@ FVMigrateFileViewerDefaults (void)
       /* General: the file viewer's settings. Desktop: NextBSD's desktop
          settings, whose defaults come from the theme. */
       NSTabView *tabs = AUTORELEASE ([[NSTabView alloc]
-          initWithFrame:NSMakeRect (10, 10, 520, 210)]);
+          initWithFrame:NSMakeRect (10, 10, 520, 250)]);
       [[preferencesPanel contentView] addSubview:tabs];
       NSRect page = [tabs contentRect];
       page.origin = NSZeroPoint;

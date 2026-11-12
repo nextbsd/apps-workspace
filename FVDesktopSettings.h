@@ -37,6 +37,7 @@ extern NSString *const FVDesktopSettingsChangedNotification;
   NSView *view;
   NSPopUpButton *minimizePopUp;
   NSPopUpButton *dockPopUp;
+  NSPopUpButton *menuPopUp;
 }
 
 /* The effective value of a desktop setting: the user's, else the theme's,
