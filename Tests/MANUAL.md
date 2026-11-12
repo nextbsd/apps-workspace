@@ -39,7 +39,7 @@ user files for delete, replacement, Trash or recovery tests.
 - [ ] Copy and Cut/Paste, Duplicate, Move To; inspect both endpoints afterward.
 - [ ] Conflict choices Keep Both, Skip, Replace, Cancel and Apply to Remaining.
       Replace a directory and confirm the old tree is a separate retained backup,
-      not silently merged or deleted. Read the scrollable operation report.
+      not silently merged or deleted. Read the note in the alert.
 - [ ] Attempt same-path, hard-link alias and directory-into-descendant operations.
 - [ ] Cancel a large copy; confirm source retained and no published partial copy.
 - [ ] Simulate a source changing during copy and read the failure/recovery report.
