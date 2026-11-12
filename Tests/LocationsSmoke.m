@@ -41,6 +41,7 @@ static unsigned checks;
 
 - (id)initWithApplications:(NSArray *)applications file:(NSString *)path;
 - (NSString *)selectedApplication;
+- (BOOL)selectApplication:(NSString *)application;
 - (NSInteger)run;
 - (BOOL)apply;
 
@@ -54,12 +55,9 @@ static unsigned checks;
 
 - (void)choose:(NSTimer *)timer
 {
-  NSArray *views = [[[NSApp modalWindow] contentView] subviews];
-  NSUInteger i;
-  for (i = 0; i < [views count]; i++)
-    if ([[views objectAtIndex:i] isKindOfClass:[NSPopUpButton class]])
-      [[views objectAtIndex:i] selectItemAtIndex:
-          [[views objectAtIndex:i] numberOfItems] > 1 ? 1 : 0];
+  /* Pick the second recommended application, as a user clicking it would. */
+  id chooser = [[NSApp modalWindow] delegate];
+  [chooser selectApplication:@"/tmp/Another.app"];
   [NSApp stopModalWithCode:[[timer userInfo] integerValue]];
 }
 
@@ -357,7 +355,7 @@ main (void)
   CHECK (([arguments isEqual:[NSString stringWithFormat:@"-GSFilePath\n%@\n", document]]));
   CHECK (![FVLauncher launchApplication:[root stringByAppendingPathComponent:@"Missing.app"]
                                   file:nil]);
-  id<FVDialogTesting> dialog = [(id<FVDialogTesting>)[NSClassFromString (@"FVDialog") alloc]
+  id<FVDialogTesting> dialog = [(id<FVDialogTesting>)[NSClassFromString (@"FVAppChooser") alloc]
       initWithApplications:[NSArray arrayWithObjects:app, @"/tmp/Another.app", nil] file:document];
   CHECK ([[dialog selectedApplication] isEqual:app]);
   CHECK (![dialog apply]);
@@ -367,10 +365,10 @@ main (void)
   for (titleIndex = 0; titleIndex < [dialogViews count]; titleIndex++)
     {
       id view = [dialogViews objectAtIndex:titleIndex];
-      if ([view isKindOfClass:[NSTextField class]] && [[view stringValue] isEqual:@"Open With"])
+      if ([view isKindOfClass:[NSTextField class]]
+          && [[view stringValue] hasPrefix:@"Choose an application to open"])
         {
           foundTitle = YES;
-          CHECK ([[view font] pointSize] >= 20);
           CHECK (![view isSelectable]);
           NSColor *color = [[view textColor] colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
           CHECK (fabs ([color redComponent] - [color greenComponent]) < .01);

@@ -18,6 +18,7 @@
  */
 
 #import "FVPanels.h"
+#import "FVLauncher.h"
 
 /* Escape presses the panel's Cancel button, even while a text field edits. */
 @implementation FVDialogPanel
@@ -570,6 +571,328 @@ FVConflictDescription (NSString *path, NSDictionary *attributes)
 {
   RELEASE (panel);
   RELEASE (applyToAll);
+  DEALLOC;
+}
+
+@end
+
+/* A list row: a 24-point icon (the cell's represented object), then the name. */
+@interface FVIconTextCell : NSTextFieldCell
+@end
+
+@implementation FVIconTextCell
+
+- (void)drawWithFrame:(NSRect)frame inView:(NSView *)view
+{
+  NSImage *image = [self representedObject];
+  NSRect text = frame;
+  text.origin.x += 32;
+  text.size.width -= 32;
+  text.origin.y += (frame.size.height - [[self font] boundingRectForFont].size.height) / 2;
+  [super drawWithFrame:text inView:view];
+  if (![image isKindOfClass:[NSImage class]])
+    return;
+  NSSize size = [image size];
+  CGFloat scale = size.width > 0 && size.height > 0 ? MIN (24 / size.width, 24 / size.height) : 1;
+  [image drawInRect:NSMakeRect (frame.origin.x + 4 + (24 - size.width * scale) / 2,
+                               frame.origin.y + (frame.size.height - size.height * scale) / 2,
+                               size.width * scale, size.height * scale)
+            fromRect:NSZeroRect
+           operation:NSCompositeSourceOver
+            fraction:1
+      respectFlipped:YES
+               hints:nil];
+}
+
+@end
+
+@implementation FVAppChooser
+
+static NSString *
+FVApplicationName (NSString *application)
+{
+  return [[application lastPathComponent] stringByDeletingPathExtension];
+}
+
+- (void)addHeading:(NSString *)title
+{
+  [rows addObject:[NSDictionary dictionaryWithObject:title forKey:@"heading"]];
+}
+
+- (void)addApplication:(NSString *)application
+{
+  NSImage *image = [[NSWorkspace sharedWorkspace] iconForFile:application];
+  [rows addObject:[NSDictionary dictionaryWithObjectsAndKeys:application, @"path",
+                                FVApplicationName (application), @"name", image, @"icon", nil]];
+}
+
+- (void)loadApplications:(NSArray *)recommended
+{
+  [rows removeAllObjects];
+  NSArray *all = [FVLauncher allApplications];
+  NSMutableArray *others = [NSMutableArray array];
+  NSUInteger i;
+  for (i = 0; i < [all count]; i++)
+    if (![recommended containsObject:[all objectAtIndex:i]])
+      [others addObject:[all objectAtIndex:i]];
+  if ([recommended count])
+    {
+      [self addHeading:@"Recommended"];
+      for (i = 0; i < [recommended count]; i++)
+        [self addApplication:[recommended objectAtIndex:i]];
+    }
+  if ([others count])
+    {
+      [self addHeading:[recommended count] ? @"Other Applications" : @"All Applications"];
+      for (i = 0; i < [others count]; i++)
+        [self addApplication:[others objectAtIndex:i]];
+    }
+  [table reloadData];
+}
+
+- (void)updateSaved
+{
+  NSString *saved = [FVLauncher defaultApplicationForFile:file];
+  NSString *extension = [[file pathExtension] lowercaseString];
+  [savedLabel setStringValue:saved
+      ? [NSString stringWithFormat:@".%@ files always open with %@.", extension,
+                                   FVApplicationName (saved)]
+      : ([extension length] ? [NSString stringWithFormat:@"No application is saved for .%@ files.",
+                                                         extension]
+                            : @"A file without an extension can’t have a saved application.")];
+  [resetButton setHidden:saved == nil];
+}
+
+- (id)initWithApplications:(NSArray *)recommended file:(NSString *)path
+{
+  if (!(self = [super init]))
+    return nil;
+  file = [path copy];
+  rows = [[NSMutableArray alloc] init];
+  panel = [[FVDialogPanel alloc] initWithContentRect:NSMakeRect (0, 0, 460, 500)
+                                           styleMask:NSTitledWindowMask
+                                             backing:NSBackingStoreBuffered
+                                               defer:NO];
+  [panel setTitle:@"Open With"];
+  [panel setDelegate:(id)self];
+  NSView *content = [panel contentView];
+  NSColor *color = FVDialogTextColor (panel);
+  NSTextField *heading = FVPanelLabel (
+      NSMakeRect (20, 448, 420, 40),
+      [NSString stringWithFormat:@"Choose an application to open “%@”.", [path lastPathComponent]],
+      [NSFont boldSystemFontOfSize:15]);
+  [[heading cell] setWraps:YES];
+  [[heading cell] setLineBreakMode:NSLineBreakByWordWrapping];
+  [heading setTextColor:color];
+  [content addSubview:heading];
+  NSScrollView *scroll = AUTORELEASE ([[NSScrollView alloc]
+      initWithFrame:NSMakeRect (20, 166, 420, 274)]);
+  [scroll setHasVerticalScroller:YES];
+  [scroll setBorderType:NSBezelBorder];
+  table = [[NSTableView alloc] initWithFrame:[[scroll contentView] bounds]];
+  NSTableColumn *column = AUTORELEASE ([[NSTableColumn alloc] initWithIdentifier:@"name"]);
+  [column setWidth:400];
+  [column setEditable:NO];
+  FVIconTextCell *cell = AUTORELEASE ([[FVIconTextCell alloc] initTextCell:@""]);
+  [cell setEditable:NO];
+  [cell setSelectable:NO];
+  [column setDataCell:cell];
+  [table addTableColumn:column];
+  [table setHeaderView:nil];
+  [table setRowHeight:28];
+  [table setGridStyleMask:NSTableViewGridNone];
+  [table setAllowsEmptySelection:YES];
+  [table setDataSource:(id)self];
+  [table setDelegate:(id)self];
+  [table setTarget:self];
+  [table setDoubleAction:@selector (openSelected:)];
+  [scroll setDocumentView:table];
+  [content addSubview:scroll];
+  NSButton *other = AUTORELEASE ([[NSButton alloc] initWithFrame:NSMakeRect (20, 128, 110, 30)]);
+  [other setTitle:@"Other…"];
+  [other setTarget:self];
+  [other setAction:@selector (browse:)];
+  [other setToolTip:@"Choose an application bundle that isn’t listed"];
+  [content addSubview:other];
+  NSString *extension = [[path pathExtension] lowercaseString];
+  always = [[NSButton alloc] initWithFrame:NSMakeRect (18, 94, 420, 24)];
+  [always setButtonType:NSSwitchButton];
+  [always setTitle:[extension length]
+      ? [NSString stringWithFormat:@"Always open .%@ files with this application", extension]
+      : @"Always open with this application"];
+  [always setEnabled:[extension length] > 0];
+  [content addSubview:always];
+  savedLabel = RETAIN (FVPanelLabel (NSMakeRect (20, 64, 330, 20), @"",
+                                     [NSFont systemFontOfSize:[NSFont smallSystemFontSize]]));
+  [savedLabel setTextColor:color];
+  [content addSubview:savedLabel];
+  resetButton = [[NSButton alloc] initWithFrame:NSMakeRect (360, 58, 80, 28)];
+  [resetButton setTitle:@"Reset"];
+  [resetButton setTarget:self];
+  [resetButton setAction:@selector (reset:)];
+  [resetButton setToolTip:@"Forget the saved application; Workspace will ask again"];
+  [content addSubview:resetButton];
+  NSButton *cancel = AUTORELEASE ([[NSButton alloc] initWithFrame:NSMakeRect (238, 16, 96, 30)]);
+  [cancel setTitle:@"Cancel"];
+  [cancel setTag:1];
+  [cancel setKeyEquivalent:@"\e"];
+  [cancel setTarget:self];
+  [cancel setAction:@selector (choose:)];
+  [content addSubview:cancel];
+  openButton = [[NSButton alloc] initWithFrame:NSMakeRect (344, 16, 96, 30)];
+  [openButton setTitle:@"Open"];
+  [openButton setTag:0];
+  [openButton setKeyEquivalent:@"\r"];
+  [openButton setTarget:self];
+  [openButton setAction:@selector (choose:)];
+  [content addSubview:openButton];
+  [self loadApplications:recommended];
+  [self updateSaved];
+  /* Select the saved or best application. */
+  NSString *saved = [FVLauncher defaultApplicationForFile:path];
+  [table deselectAll:nil];
+  if (!(saved && [self selectApplication:saved]) && [recommended count])
+    [self selectApplication:[recommended objectAtIndex:0]];
+  [openButton setEnabled:[self selectedApplication] != nil];
+  return self;
+}
+
+- (NSInteger)numberOfRowsInTableView:(NSTableView *)sender
+{
+  return [rows count];
+}
+
+- (id)tableView:(NSTableView *)sender
+    objectValueForTableColumn:(NSTableColumn *)column
+                          row:(NSInteger)row
+{
+  NSDictionary *entry = [rows objectAtIndex:row];
+  return [entry objectForKey:@"heading"] ? [entry objectForKey:@"heading"]
+                                         : [entry objectForKey:@"name"];
+}
+
+- (void)tableView:(NSTableView *)sender
+    willDisplayCell:(id)cell
+     forTableColumn:(NSTableColumn *)column
+                row:(NSInteger)row
+{
+  NSDictionary *entry = [rows objectAtIndex:row];
+  BOOL heading = [entry objectForKey:@"heading"] != nil;
+  [cell setRepresentedObject:[entry objectForKey:@"icon"]];
+  [cell setFont:heading ? [NSFont boldSystemFontOfSize:[NSFont smallSystemFontSize]]
+                        : [NSFont systemFontOfSize:[NSFont systemFontSize]]];
+}
+
+- (BOOL)tableView:(NSTableView *)sender shouldSelectRow:(NSInteger)row
+{
+  return [[rows objectAtIndex:row] objectForKey:@"path"] != nil;
+}
+
+- (void)tableViewSelectionDidChange:(NSNotification *)note
+{
+  [openButton setEnabled:[self selectedApplication] != nil];
+}
+
+- (NSString *)selectedApplication
+{
+  NSInteger row = [table selectedRow];
+  return row >= 0 && row < (NSInteger)[rows count] ? [[rows objectAtIndex:row] objectForKey:@"path"]
+                                                   : nil;
+}
+
+- (BOOL)selectApplication:(NSString *)application
+{
+  NSUInteger i;
+  for (i = 0; i < [rows count]; i++)
+    if ([[[rows objectAtIndex:i] objectForKey:@"path"] isEqual:application])
+      {
+        [table selectRowIndexes:[NSIndexSet indexSetWithIndex:i] byExtendingSelection:NO];
+        [table scrollRowToVisible:i];
+        [openButton setEnabled:YES];
+        return YES;
+      }
+  return NO;
+}
+
+- (void)browse:(id)sender
+{
+  NSOpenPanel *picker = [NSOpenPanel openPanel];
+  [picker setTitle:@"Choose an Application"];
+  [picker setCanChooseDirectories:YES];
+  [picker setCanChooseFiles:YES];
+  [picker setAllowsMultipleSelection:NO];
+  NSArray *directories = NSSearchPathForDirectoriesInDomains (NSApplicationDirectory,
+                                                              NSAllDomainsMask, YES);
+  if ([picker runModalForDirectory:[directories count] ? [directories objectAtIndex:0] : nil
+                              file:nil
+                             types:[NSArray arrayWithObject:@"app"]] != NSOKButton)
+    return;
+  NSString *app = [picker filename];
+  if (![[NSWorkspace sharedWorkspace] locateApplicationBinary:app])
+    return;
+  if (![self selectApplication:app])
+    {
+      [rows insertObject:[NSDictionary dictionaryWithObject:@"Chosen" forKey:@"heading"] atIndex:0];
+      NSDictionary *entry;
+      [self addApplication:app];
+      entry = RETAIN ([rows lastObject]);
+      [rows removeLastObject];
+      [rows insertObject:entry atIndex:1];
+      RELEASE (entry);
+      [table reloadData];
+      [self selectApplication:app];
+    }
+}
+
+- (void)reset:(id)sender
+{
+  [FVLauncher setDefaultApplication:nil forFile:file];
+  [always setState:NSOffState];
+  [self updateSaved];
+}
+
+- (void)openSelected:(id)sender
+{
+  if ([self selectedApplication])
+    [NSApp stopModalWithCode:0];
+}
+
+- (void)choose:(id)sender
+{
+  [NSApp stopModalWithCode:[sender tag]];
+}
+
+- (NSInteger)run
+{
+  [panel center];
+  [panel makeKeyAndOrderFront:nil];
+  [panel makeFirstResponder:table];
+  return FVRunModalPanel (panel);
+}
+
+- (BOOL)apply
+{
+  return [always isEnabled] && [always state] == NSOnState;
+}
+
+- (NSPanel *)panel
+{
+  return panel;
+}
+
+- (void)dealloc
+{
+  [panel setDelegate:nil];
+  [table setDataSource:nil];
+  [table setDelegate:nil];
+  RELEASE (panel);
+  RELEASE (file);
+  RELEASE (table);
+  RELEASE (rows);
+  RELEASE (always);
+  RELEASE (openButton);
+  RELEASE (savedLabel);
+  RELEASE (resetButton);
   DEALLOC;
 }
 

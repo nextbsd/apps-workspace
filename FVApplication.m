@@ -119,13 +119,13 @@ FVMigrateFileViewerDefaults (void)
       action:@selector (preferences:) keyEquivalent:@","];
   [preferences setTarget:self];
   FVMenu (menu, @"File",
-          [NSArray arrayWithObjects:@"New Window", @"Open", @"Open With…", @"Reset Open With Association",
+          [NSArray arrayWithObjects:@"New Window", @"Open", @"Open With…",
                                     @"Open Folder in New Window", @"Show Package Contents",
                                     @"New Folder", @"Rename", @"Delete Permanently…", @"Get Info", @"Close", nil],
-          [NSArray arrayWithObjects:@"newWindow:", @"open:", @"openWith:", @"resetOpenWith:", @"openNewWindow:",
+          [NSArray arrayWithObjects:@"newWindow:", @"open:", @"openWith:", @"openNewWindow:",
                                     @"packageContents:", @"newFolder:", @"rename:", @"deletePermanently:", @"info:",
                                     @"performClose:", nil],
-          [NSArray arrayWithObjects:@"n", @"o", @"", @"", @"", @"", @"", @"", @"", @"i", @"w", nil]);
+          [NSArray arrayWithObjects:@"n", @"o", @"", @"", @"", @"", @"", @"", @"i", @"w", nil]);
   FVMenu (
       menu, @"Edit",
       [NSArray arrayWithObjects:@"Undo Last Safe Operation", @"Cut", @"Copy", @"Paste",

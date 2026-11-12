@@ -137,14 +137,14 @@ Inspected development environment:
   and refresh when files change. Unsupported formats, unavailable codecs and
   damaged media keep their ordinary icons.
 - Application bundles launch directly. Files use GNUstep's registered type
-  associations; when several applications match, a chooser lists the preferred
-  application first. With no association, choose an application manually.
-  The chooser's “Always open this file type with the selected application”
-  checkbox saves a default for that extension in Workspace and skips the
-  chooser on future opens. To change it, select a file and use File → Open With…,
-  choose an application (or use Other…), and check the box. File → Reset Open
-  With Association clears the saved choice. An unchecked box opens once without
-  replacing an existing default. Files without extensions cannot save a default.
+  associations. When none is saved, or with File → Open With…, the Open With
+  chooser lists applications by name with their icons: those that declare the
+  file's type (and any saved choice) under Recommended, then every other
+  application in the Applications folders. Other… picks a bundle that isn't
+  listed. “Always open .txt files with this application” saves the choice for
+  that extension and skips the chooser on future opens; the chooser shows the
+  saved choice with a Reset button that forgets it. Files without extensions
+  cannot save a default.
   Workspace contacts or launches the chosen application directly, without
   delegating file opening to GWorkspace. Open With also uses this direct path.
   Communication with the selected application runs in the background so a slow
@@ -177,8 +177,8 @@ Inspected development environment:
   Command/Control substitution. Labels and non-editable text fields are borderless.
 
 File → Open uses NSWorkspace associations. Recognized application bundles launch
-as packages; Show Package Contents enters them. Open With offers a native chooser
-for an application bundle without modifying associations.
+as packages; Show Package Contents enters them. Open With offers the application
+chooser described above.
 
 File → Get Info opens the Inspector, one window like NeXTSTEP's that follows
 the selection of the active File Viewer. It shows the item's icon, its name
@@ -279,9 +279,9 @@ permanent deletion is between top-level items, not inside NSFileManager removal.
 | `FVModel` | File items and cancellable batched background listings/search |
 | `FVOperations` | Operation scheduling, progress, conflicts/results, POSIX copying/moving, guarded undo, home Trash |
 | `FVInspector` | The Inspector (Get Info): metadata, rename, owner, group and permissions |
-| `FVPanels` | The Processes (progress) window, the conflict panel, the shared modal panel helpers and size formatting |
+| `FVPanels` | The Processes (progress) window, the conflict panel, the Open With chooser, the shared modal panel helpers and size formatting |
 | `FVIconView` | Native icon layout, selection, keyboard navigation and drag/drop |
-| `FVLauncher` | File-type associations and direct application activation/launch |
+| `FVLauncher` | File-type associations, the installed application list, and direct application activation/launch |
 | `main.m` | MRC application lifecycle |
 | `Resources/Workspace.png` | The NextBSD cube, from nextbsd-theme's logo without its black square (see `Resources/ICON.txt`) |
 
@@ -334,7 +334,6 @@ filtering, navigation and file-action restrictions.
 - No content search, live preview pane, directory merging or per-volume Trash.
 - Polling instead of inotify; large or remote directories can take longer to
   update. Selection of descendants is not translated into a different view's root list.
-- Open With chooses a bundle rather than presenting a ranked association list.
 - Long-running OS calls cannot always be interrupted immediately. Final sorting
   is on the UI thread; enormous directories/search result sets can still pause
   while sorting and consume memory proportional to the number of results.

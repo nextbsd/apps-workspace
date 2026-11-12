@@ -81,3 +81,29 @@ NSString *FVDateString (NSDate *date);
 - (NSPanel *)panel;
 
 @end
+
+/* File → Open With…: lists applications by name with their icons, those
+   that declare the file's type first, then all others. "Always open …
+   with this application" saves the choice for the extension, and a saved
+   choice is shown with a Reset button. -run returns 0 Open or 1 Cancel. */
+@interface FVAppChooser : NSObject <FVModalDialog>
+{
+  NSPanel *panel;
+  NSString *file;
+  NSTableView *table;
+  NSMutableArray *rows;
+  NSButton *always;
+  NSButton *openButton;
+  NSTextField *savedLabel;
+  NSButton *resetButton;
+}
+
+/* recommended: the applications that declare the file's type, best first. */
+- (id)initWithApplications:(NSArray *)recommended file:(NSString *)path;
+- (NSInteger)run;
+- (NSString *)selectedApplication;
+- (BOOL)selectApplication:(NSString *)application;
+- (BOOL)apply;
+- (NSPanel *)panel;
+
+@end
