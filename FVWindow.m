@@ -705,6 +705,28 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       clickCount:[event clickCount] pressure:[event pressure]];
 }
 
+/* Delay before a slow second click on a selected name starts renaming; a
+   quicker second click is a double-click and opens the item instead. */
+static const NSTimeInterval FVSlowClickDelay = .7;
+
+static BOOL
+FVPlainClick (NSEvent *event)
+{
+  return [event clickCount] == 1
+         && !([event modifierFlags]
+              & (NSShiftKeyMask | NSControlKeyMask | NSCommandKeyMask | NSAlternateKeyMask));
+}
+
+/* After a click's tracking loop: the button came up where it went down. */
+static BOOL
+FVClickStayedPut (NSEvent *down)
+{
+  NSEvent *up = [NSApp currentEvent];
+  return [up type] == NSLeftMouseUp
+         && fabs ([up locationInWindow].x - [down locationInWindow].x) < 4
+         && fabs ([up locationInWindow].y - [down locationInWindow].y) < 4;
+}
+
 @interface FVTableView : NSTableView
 {
   NSMutableString *typed;
@@ -719,7 +741,12 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 
 - (void)mouseDown:(NSEvent *)event
 {
-  NSInteger row = [self rowAtPoint:[self convertPoint:[event locationInWindow] fromView:nil]];
+  NSPoint point = [self convertPoint:[event locationInWindow] fromView:nil];
+  NSInteger row = [self rowAtPoint:point];
+  [NSObject cancelPreviousPerformRequestsWithTarget:self];
+  BOOL slowClick = row >= 0 && FVPlainClick (event) && [self numberOfSelectedRows] == 1
+                   && [self isRowSelected:row]
+                   && [self columnAtPoint:point] == [self columnWithIdentifier:@"name"];
   NSUInteger modifiers = [event modifierFlags];
   if (modifiers & NSShiftKeyMask)
     event = FVSelectionEvent (event,
@@ -732,6 +759,17 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       && !(modifiers & (NSShiftKeyMask | NSControlKeyMask | NSCommandKeyMask)))
     [self selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];
   [super mouseDown:event];
+  if (slowClick && FVClickStayedPut (event))
+    [self performSelector:@selector (renameAfterSlowClick:)
+               withObject:[NSNumber numberWithInteger:row]
+               afterDelay:FVSlowClickDelay];
+}
+
+- (void)renameAfterSlowClick:(NSNumber *)row
+{
+  if ([self numberOfSelectedRows] == 1 && [self isRowSelected:[row integerValue]]
+      && [[self window] firstResponder] == self)
+    [NSApp sendAction:@selector (rename:) to:[self target] from:self];
 }
 
 - (void)updateFileTooltips
@@ -769,9 +807,13 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 - (void)keyDown:(NSEvent *)event
 {
   NSString *text = [event charactersIgnoringModifiers];
+  [NSObject cancelPreviousPerformRequestsWithTarget:self];
   if ([text isEqual:@"\r"])
     {
-      [NSApp sendAction:[self doubleAction] to:[self target] from:self];
+      [NSApp sendAction:[self numberOfSelectedRows] == 1 ? @selector (rename:)
+                                                         : [self doubleAction]
+                     to:[self target]
+                   from:self];
       return;
     }
   if ([text length] && [text characterAtIndex:0] >= 32 && [text characterAtIndex:0] < 0xf700
@@ -804,6 +846,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 
 - (void)dealloc
 {
+  [NSObject cancelPreviousPerformRequestsWithTarget:self];
   RELEASE (typed);
   DEALLOC;
 }
@@ -846,10 +889,36 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   [self updateFileTooltips];
 }
 
+- (void)keyDown:(NSEvent *)event
+{
+  [NSObject cancelPreviousPerformRequestsWithTarget:self];
+  if ([[event charactersIgnoringModifiers] isEqual:@"\r"] && [[self selectedCells] count] == 1)
+    {
+      [NSApp sendAction:@selector (rename:) to:nil from:self];
+      return;
+    }
+  [super keyDown:event];
+}
+
+- (void)renameAfterSlowClick:(id)cell
+{
+  NSArray *cells = [self selectedCells];
+  if ([cells count] == 1 && [cells objectAtIndex:0] == cell
+      && [[self window] firstResponder] == self)
+    [NSApp sendAction:@selector (rename:) to:nil from:self];
+}
+
+- (void)dealloc
+{
+  [NSObject cancelPreviousPerformRequestsWithTarget:self];
+  DEALLOC;
+}
+
 - (void)mouseDown:(NSEvent *)event
 {
   NSInteger row, column;
   NSPoint point = [self convertPoint:[event locationInWindow] fromView:nil];
+  [NSObject cancelPreviousPerformRequestsWithTarget:self];
   if (![self getRow:&row column:&column forPoint:point])
     {
       [super mouseDown:event];
@@ -876,6 +945,9 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
     }
   if ([next type] != NSLeftMouseDragged)
     {
+      id clicked = [self cellAtRow:row column:column];
+      BOOL slowClick = FVPlainClick (event) && [[self selectedCells] count] == 1
+                       && [[self selectedCells] objectAtIndex:0] == clicked;
       NSUInteger modifiers = [event modifierFlags];
       if (modifiers & NSShiftKeyMask)
         event = FVSelectionEvent (event,
@@ -886,6 +958,10 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
             (modifiers & ~(NSControlKeyMask | NSCommandKeyMask | NSAlternateKeyMask))
                 | NSShiftKeyMask);
       [super mouseDown:event];
+      if (slowClick && FVClickStayedPut (event))
+        [self performSelector:@selector (renameAfterSlowClick:)
+                   withObject:clicked
+                   afterDelay:FVSlowClickDelay];
       return;
     }
   id cell = [self cellAtRow:row column:column];
@@ -2252,13 +2328,15 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 {
   if (control != nameEditor || !editingPath)
     return NO;
-  if (command == @selector (insertNewline:))
+  /* Compare by name: libobjc2 selectors can carry differing type encodings. */
+  if (sel_isEqual (command, @selector (insertNewline:)))
     {
       [self commitNameEdit];
       return YES;
     }
   /* GNUstep binds Escape to complete:. */
-  if (command == @selector (cancelOperation:) || command == @selector (complete:))
+  if (sel_isEqual (command, @selector (cancelOperation:))
+      || sel_isEqual (command, @selector (complete:)))
     {
       [self endEditingName:YES];
       return YES;
@@ -2308,27 +2386,14 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
     }
 }
 
+/* Rename edits the selected item's name in place. Return on a single
+   selected item and a slow second click on its name start it too. */
 - (void)rename:(id)sender
 {
   NSArray *selected = [self selectedPaths];
-  if ([selected count] != 1)
+  if ([selected count] != 1 || operation)
     return;
-  NSString *source = [selected objectAtIndex:0];
-  NSString *name = FVPrompt (self, @"Rename",
-                             [NSString stringWithFormat:@"New name for “%@”:",
-                                                        [source lastPathComponent]],
-                             [source lastPathComponent]);
-  if (!name)
-    return;
-  if (![FVOperations validName:name])
-    {
-      FVRunAlert (@"Rename", @"Invalid Name", FVInvalidNameMessage, @"OK", nil);
-      return;
-    }
-  [self runOperation:@"rename"
-               paths:selected
-         destination:[[source stringByDeletingLastPathComponent]
-                         stringByAppendingPathComponent:name]];
+  [self beginEditingName:[selected objectAtIndex:0]];
 }
 
 - (void)info:(id)sender

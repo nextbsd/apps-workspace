@@ -30,6 +30,7 @@
   NSPoint mouseDownPoint;
   NSString *mouseDownPath;
   BOOL dragPending;
+  BOOL slowClick;
   NSMutableArray *rowOffsets;
 }
 
