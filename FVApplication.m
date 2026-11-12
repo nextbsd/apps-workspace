@@ -121,11 +121,15 @@ FVMigrateFileViewerDefaults (void)
   FVMenu (menu, @"File",
           [NSArray arrayWithObjects:@"New Window", @"Open", @"Open With…",
                                     @"Open Folder in New Window", @"Show Package Contents",
-                                    @"New Folder", @"Rename", @"Delete Permanently…", @"Get Info", @"Close", nil],
+                                    @"New Folder", @"Rename", @"Delete Permanently…", @"Get Info",
+                                    @"Add to Favorites", @"Close", nil],
           [NSArray arrayWithObjects:@"newWindow:", @"open:", @"openWith:", @"openNewWindow:",
                                     @"packageContents:", @"newFolder:", @"rename:", @"deletePermanently:", @"info:",
-                                    @"performClose:", nil],
-          [NSArray arrayWithObjects:@"n", @"o", @"", @"", @"", @"", @"", @"", @"i", @"w", nil]);
+                                    @"addFavorite:", @"performClose:", nil],
+          [NSArray arrayWithObjects:@"n", @"o", @"", @"", @"", @"", @"", @"", @"i", @"t", @"w", nil]);
+  /* Command-Control-T, as on macOS. */
+  [[[[menu itemWithTitle:@"File"] submenu] itemWithTitle:@"Add to Favorites"]
+      setKeyEquivalentModifierMask:NSCommandKeyMask | NSControlKeyMask];
   FVMenu (
       menu, @"Edit",
       [NSArray arrayWithObjects:@"Undo Last Safe Operation", @"Cut", @"Copy", @"Paste",

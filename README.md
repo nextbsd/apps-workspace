@@ -83,21 +83,24 @@ Inspected development environment:
   absolute paths and paths relative to the window's folder. Tab completes the
   last folder name (listing the matches when several fit), the field's menu holds
   recent folders and the matches, and a missing folder is reported in the panel.
-- The Locations outline has collapsible Common Locations, Favorites, Mounted and Network groups,
-  with icons and no grid lines. Common locations include Home, existing
+- The Locations outline has collapsible Local User, Favorites, Domains and
+  Volumes groups, with icons and no grid lines. Local User holds Home, existing
   Desktop/Documents/Downloads/Pictures/Music/Videos and the home Trash when it
-  exists. Mounted volumes, including the root filesystem, appear under Mounted
-  instead of Common Locations. Filesystems mounted at `/run` or beneath it are
+  exists. Filesystems mounted at `/run` or beneath it are
   excluded by default. Preferences → Exclude filesystems mounted under /run
   remembers your choice and updates all open windows immediately. This applies to
-  every Locations section, including Network and Favorites; saved favorites
+  every Locations section, including Favorites; saved favorites
   are preserved, and you can still browse those paths directly.
   Drop files, folders, or applications onto a folder or drive in Locations to
   copy them into that location, including favorite folders and network volumes.
-  Drop onto the Favorites heading, between favorites, or into blank sidebar space
-  to save shortcuts without copying files. Click a favorite to
+  Favorites appears once it holds a folder. File → Add to Favorites
+  (Command-Control-T) adds the selected folders, or the current folder when
+  nothing is selected. Dropping folders onto the Favorites heading or between
+  favorites (an insertion line shows where) adds them without copying, and
+  dragging a favorite reorders it. A folder is listed once; a favorite whose
+  folder is missing is greyed out rather than removed. Click a favorite to
   open it; right-click a favorite and choose Remove from Favorites to remove
-  that shortcut. Go → Remove Favorite removes the selected favorite. XDG
+  that shortcut. XDG
   `user-dirs.dirs` values using `$HOME` or absolute paths are recognized without
   executing that file. Missing personal directories are never created.
 - Network lists mounted remote filesystems using Linux mount information and

@@ -124,6 +124,68 @@ FVVisibleLocationPaths (NSArray *paths)
   return visible;
 }
 
+/* Favorites are folder paths saved in the Favorites default, in sidebar order. */
+static NSString *const FVFavoriteDragType = @"org.nextbsd.Workspace.favorite";
+
+static NSMutableArray *
+FVFavoritePaths (void)
+{
+  NSArray *saved = [[NSUserDefaults standardUserDefaults] arrayForKey:@"Favorites"];
+  NSMutableArray *favorites = [NSMutableArray array];
+  NSUInteger i;
+  for (i = 0; i < [saved count]; i++)
+    {
+      id value = [saved objectAtIndex:i];
+      if (![value isKindOfClass:[NSString class]] || ![value isAbsolutePath])
+        continue;
+      value = FVStandardizedPath (value);
+      if (![favorites containsObject:value])
+        [favorites addObject:value];
+    }
+  return favorites;
+}
+
+/* Every open viewer rebuilds its Locations list from the saved favorites. */
+static void
+FVSaveFavoritePaths (NSArray *favorites)
+{
+  [[NSUserDefaults standardUserDefaults] setObject:favorites forKey:@"Favorites"];
+  [[NSUserDefaults standardUserDefaults] synchronize];
+  [[NSNotificationCenter defaultCenter] postNotificationName:@"FVLocationPreferencesChanged"
+                                                      object:nil];
+}
+
+/* A favorite on a network volume isn't checked: its server may not answer. */
+static BOOL
+FVFavoriteIsMissing (NSString *favorite, NSArray *networkPaths)
+{
+  NSUInteger i;
+  for (i = 0; i < [networkPaths count]; i++)
+    {
+      NSString *network = [networkPaths objectAtIndex:i];
+      if ([favorite isEqual:network] || [favorite hasPrefix:[network stringByAppendingString:@"/"]])
+        return NO;
+    }
+  BOOL directory = NO;
+  return !([[NSFileManager defaultManager] fileExistsAtPath:favorite isDirectory:&directory]
+           && directory);
+}
+
+static BOOL
+FVPathsAreFolders (NSArray *paths)
+{
+  NSUInteger i;
+  for (i = 0; i < [paths count]; i++)
+    {
+      BOOL directory = NO;
+      if (![[NSFileManager defaultManager] fileExistsAtPath:[paths objectAtIndex:i]
+                                                isDirectory:&directory]
+          || !directory)
+        return NO;
+    }
+  return [paths count] > 0;
+}
+
 /* A volume is a mount point directly inside a mount root. On the BSDs the
    mount table is read without waiting, and nothing is stat'ed, so a hung
    network mount can't block the main thread, which polls this every second. */
@@ -627,6 +689,17 @@ static NSString *const FVInvalidNameMessage
 
 @implementation FVSidebarView
 
+/* The table only drags rows that were selected before the press, so select a
+   favorite first: then it can be dragged to reorder it in one motion. */
+- (void)mouseDown:(NSEvent *)event
+{
+  NSInteger row = [self rowAtPoint:[self convertPoint:[event locationInWindow] fromView:nil]];
+  if (row >= 0 && [event clickCount] == 1
+      && [[[self itemAtRow:row] objectForKey:@"group"] isEqual:@"favorite"])
+    [self selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];
+  [super mouseDown:event];
+}
+
 - (NSMenu *)menuForEvent:(NSEvent *)event
 {
   NSInteger row = [self rowAtPoint:[self convertPoint:[event locationInWindow] fromView:nil]];
@@ -1024,7 +1097,7 @@ FVClickStayedPut (NSEvent *down)
                                size.width * scale, size.height * scale)
             fromRect:NSZeroRect
            operation:NSCompositeSourceOver
-            fraction:1
+            fraction:[self isEnabled] ? 1 : .5
       respectFlipped:YES
                hints:nil];
 }
@@ -1199,7 +1272,12 @@ FVClickStayedPut (NSEvent *down)
       [sidebar setDelegate:self];
       [sidebar setTarget:self];
       [sidebar setAction:@selector (sidebarClicked:)];
-      [sidebar registerForDraggedTypes:[NSArray arrayWithObject:NSFilenamesPboardType]];
+      [sidebar registerForDraggedTypes:[NSArray arrayWithObjects:NSFilenamesPboardType,
+                                                                 FVFavoriteDragType, nil]];
+      /* Favorites are dragged only to reorder them, so up or down. */
+      [sidebar setVerticalMotionCanBeginDrag:YES];
+      [sidebar setDraggingSourceOperationMask:NSDragOperationMove forLocal:YES];
+      [sidebar setDraggingSourceOperationMask:NSDragOperationNone forLocal:NO];
       [sideScroll setDocumentView:sidebar];
       [content addSubview:sideScroll];
       status = RETAIN (FVLabel (NSMakeRect (10, 5, contentSize.width - 260, 24), @"Loading…"));
@@ -1368,24 +1446,38 @@ FVClickStayedPut (NSEvent *down)
       @"Volumes", @"title", mounted, @"children", nil];
   if (FVRootHasFolder (@"Volumes"))
     [volumesGroup setObject:@"/Volumes" forKey:@"path"];
-  BOOL initial = places == nil;
-  BOOL commonExpanded = initial || [sidebar isItemExpanded:[places objectAtIndex:0]];
-  BOOL domainsExpanded = initial || [sidebar isItemExpanded:[places objectAtIndex:1]];
-  BOOL volumesExpanded = initial || [sidebar isItemExpanded:[places objectAtIndex:2]];
-  RELEASE (places);
-  places = [[NSArray alloc] initWithObjects:
+  /* Favorites keep their place while their folder is missing, greyed out, so
+     one on a disk that isn't mounted comes back with the disk. */
+  NSArray *favoritePaths = FVVisibleLocationPaths (FVFavoritePaths ());
+  NSMutableArray *favorites = [NSMutableArray array];
+  for (i = 0; i < [favoritePaths count]; i++)
+    {
+      NSString *favorite = [favoritePaths objectAtIndex:i];
+      BOOL missing = FVFavoriteIsMissing (favorite, allNetworkPaths);
+      [favorites addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+          favorite, @"path", @"favorite", @"group",
+          [NSNumber numberWithBool:missing], @"missing", nil]];
+    }
+  /* Sections stay collapsed by title; a new Favorites section starts open. */
+  NSMutableSet *collapsed = [NSMutableSet set];
+  for (i = 0; i < [places count]; i++)
+    if (![sidebar isItemExpanded:[places objectAtIndex:i]])
+      [collapsed addObject:[[places objectAtIndex:i] objectForKey:@"title"]];
+  NSMutableArray *sections = [NSMutableArray arrayWithObject:
       [NSDictionary dictionaryWithObjectsAndKeys:userTitle, @"title",
-                                                 common, @"children", nil],
-      [NSDictionary dictionaryWithObjectsAndKeys:@"Domains", @"title",
-                                                 domains, @"children", nil],
-      volumesGroup, nil];
+                                                 common, @"children", nil]];
+  if ([favorites count])
+    [sections addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+        @"Favorites", @"title", favorites, @"children", @"favorites", @"group", nil]];
+  [sections addObject:[NSDictionary dictionaryWithObjectsAndKeys:@"Domains", @"title",
+                                                                 domains, @"children", nil]];
+  [sections addObject:volumesGroup];
+  RELEASE (places);
+  places = [sections copy];
   [sidebar reloadData];
-  if (commonExpanded)
-    [sidebar expandItem:[places objectAtIndex:0]];
-  if (domainsExpanded)
-    [sidebar expandItem:[places objectAtIndex:1]];
-  if (volumesExpanded)
-    [sidebar expandItem:[places objectAtIndex:2]];
+  for (i = 0; i < [places count]; i++)
+    if (![collapsed containsObject:[[places objectAtIndex:i] objectForKey:@"title"]])
+      [sidebar expandItem:[places objectAtIndex:i]];
   [self redrawThumbnails];
 }
 
@@ -1623,6 +1715,9 @@ FVClickStayedPut (NSEvent *down)
   NSString *p = [item objectForKey:@"path"];
   NSString *name = p ? [placeIcons objectForKey:p] : nil;
   NSImage *image = name ? [NSImage imageNamed:name] : nil;
+  BOOL missing = [[item objectForKey:@"missing"] boolValue];
+  [cell setEnabled:!missing];
+  [cell setTextColor:missing ? [NSColor disabledControlTextColor] : [NSColor textColor]];
   if ([item objectForKey:@"children"])
     {
       [cell setImage:nil];
@@ -1638,6 +1733,11 @@ FVClickStayedPut (NSEvent *down)
   if ([p isEqual:FVRecentsLocation])
     {
       [cell setImage:FVToolbarImage (4)];
+      return;
+    }
+  if (missing && [NSImage imageNamed:@"common_Folder"])
+    {
+      [cell setImage:[NSImage imageNamed:@"common_Folder"]];
       return;
     }
   [cell setImage:p ? (image ? image : [self iconForPath:p]) : nil];
@@ -1668,11 +1768,87 @@ FVClickStayedPut (NSEvent *down)
       && directory;
 }
 
+- (NSDictionary *)favoritesGroup
+{
+  NSUInteger i;
+  for (i = 0; i < [places count]; i++)
+    if ([[[places objectAtIndex:i] objectForKey:@"group"] isEqual:@"favorites"])
+      return [places objectAtIndex:i];
+  return nil;
+}
+
+/* Adds folders to Favorites before the favorite shown at index, or at the end
+   for NSNotFound. A folder that is already a favorite moves there, except at
+   the end, where it stays put, so Favorites never lists a folder twice. */
+- (void)addFavorites:(NSArray *)paths atIndex:(NSUInteger)index
+{
+  NSMutableArray *favorites = FVFavoritePaths ();
+  NSMutableArray *added = [NSMutableArray array];
+  NSUInteger i;
+  for (i = 0; i < [paths count]; i++)
+    {
+      NSString *p = FVStandardizedPath ([paths objectAtIndex:i]);
+      if (![added containsObject:p] && (index != NSNotFound || ![favorites containsObject:p]))
+        [added addObject:p];
+    }
+  NSArray *shown = [[self favoritesGroup] objectForKey:@"children"];
+  NSString *before = nil;
+  for (i = index; index != NSNotFound && i < [shown count] && !before; i++)
+    if (![added containsObject:[[shown objectAtIndex:i] objectForKey:@"path"]])
+      before = [[shown objectAtIndex:i] objectForKey:@"path"];
+  [favorites removeObjectsInArray:added];
+  NSUInteger insertion = before ? [favorites indexOfObject:before] : [favorites count];
+  if (insertion == NSNotFound)
+    insertion = [favorites count];
+  [favorites replaceObjectsInRange:NSMakeRange (insertion, 0) withObjectsFromArray:added];
+  FVSaveFavoritePaths (favorites);
+  if ([self favoritesGroup])
+    [sidebar expandItem:[self favoritesGroup]];
+}
+
+/* Only favorites can be dragged out of the sidebar, and only to reorder them. */
+- (BOOL)outlineView:(NSOutlineView *)sender writeItems:(NSArray *)dragged
+       toPasteboard:(NSPasteboard *)pb
+{
+  NSMutableArray *paths = [NSMutableArray array];
+  NSUInteger i;
+  for (i = 0; i < [dragged count]; i++)
+    {
+      if (![[[dragged objectAtIndex:i] objectForKey:@"group"] isEqual:@"favorite"])
+        return NO;
+      [paths addObject:[[dragged objectAtIndex:i] objectForKey:@"path"]];
+    }
+  [pb declareTypes:[NSArray arrayWithObject:FVFavoriteDragType] owner:nil];
+  return [pb setPropertyList:paths forType:FVFavoriteDragType];
+}
+
+/* Folders dropped onto the Favorites heading or between favorites become
+   favorites; dropped onto a location, they are copied into it. */
 - (NSDragOperation)outlineView:(NSOutlineView *)sender
     validateDrop:(id<NSDraggingInfo>)info proposedItem:(id)item
     proposedChildIndex:(NSInteger)index
 {
-  if (![self favoritePathsFromPasteboard:[info draggingPasteboard]])
+  NSDictionary *favoritesGroup = [self favoritesGroup];
+  BOOL reorder = [info draggingSource] == sidebar
+      && [[[info draggingPasteboard] types] containsObject:FVFavoriteDragType];
+  NSArray *paths = reorder ? nil : [self favoritePathsFromPasteboard:[info draggingPasteboard]];
+  if (!reorder && !paths)
+    return NSDragOperationNone;
+  /* Just below the last favorite, at the left edge, still means the end of Favorites. */
+  if (!item && favoritesGroup && [sender isItemExpanded:favoritesGroup]
+      && index == (NSInteger)[places indexOfObjectIdenticalTo:favoritesGroup] + 1)
+    {
+      item = favoritesGroup;
+      index = [[favoritesGroup objectForKey:@"children"] count];
+      [sender setDropItem:item dropChildIndex:index];
+    }
+  if (item && item == favoritesGroup)
+    {
+      if (!reorder && !FVPathsAreFolders (paths))
+        return NSDragOperationNone;
+      return reorder ? NSDragOperationMove : NSDragOperationCopy;
+    }
+  if (reorder)
     return NSDragOperationNone;
   if ([item objectForKey:@"path"])
     {
@@ -1687,6 +1863,21 @@ FVClickStayedPut (NSEvent *down)
 - (BOOL)outlineView:(NSOutlineView *)sender acceptDrop:(id<NSDraggingInfo>)info
     item:(id)item childIndex:(NSInteger)index
 {
+  if (item && item == [self favoritesGroup])
+    {
+      BOOL reorder = [info draggingSource] == sidebar
+          && [[[info draggingPasteboard] types] containsObject:FVFavoriteDragType];
+      NSArray *dropped = reorder
+          ? [[info draggingPasteboard] propertyListForType:FVFavoriteDragType]
+          : [self favoritePathsFromPasteboard:[info draggingPasteboard]];
+      if (![dropped isKindOfClass:[NSArray class]] || (!reorder && !FVPathsAreFolders (dropped)))
+        return NO;
+      /* Onto the heading: new favorites go at the end; dragged ones move there. */
+      if (index == NSOutlineViewDropOnItemIndex)
+        index = reorder ? (NSInteger)[[item objectForKey:@"children"] count] : (NSInteger)NSNotFound;
+      [self addFavorites:dropped atIndex:(NSUInteger)index];
+      return YES;
+    }
   NSArray *paths = [self favoritePathsFromPasteboard:[info draggingPasteboard]];
   if (!paths)
     return NO;
@@ -1832,8 +2023,23 @@ FVClickStayedPut (NSEvent *down)
 {
   if ([sidebar selectedRow] >= 0)
     {
-      NSString *p = [[sidebar itemAtRow:[sidebar selectedRow]] objectForKey:@"path"];
-      if (p)
+      NSDictionary *item = [sidebar itemAtRow:[sidebar selectedRow]];
+      NSString *p = [item objectForKey:@"path"];
+      if ([[item objectForKey:@"missing"] boolValue])
+        {
+          [sidebar deselectAll:nil];
+          if (FVRunAlert (@"Favorites",
+                          [NSString stringWithFormat:@"“%@” can’t be found.", [p lastPathComponent]],
+                          @"The folder was moved or deleted, or is on a disk that isn’t connected.",
+                          @"OK", @"Remove from Favorites")
+              == NSAlertAlternateReturn)
+            {
+              NSMutableArray *favorites = FVFavoritePaths ();
+              [favorites removeObject:p];
+              FVSaveFavoritePaths (favorites);
+            }
+        }
+      else if (p)
         [self openPath:p];
     }
 }
@@ -2474,26 +2680,28 @@ FVClickStayedPut (NSEvent *down)
     [self navigate:[selected objectAtIndex:0]];
 }
 
+/* File → Add to Favorites adds the selected folders, or this folder when
+   nothing is selected. */
+- (NSArray *)favoriteCandidates
+{
+  NSArray *selected = [self selectedPaths];
+  if ([selected count])
+    return FVPathsAreFolders (selected) ? selected : [NSArray array];
+  if (!path || [path isEqual:FVRecentsLocation])
+    return [NSArray array];
+  return [NSArray arrayWithObject:path];
+}
+
 - (void)addFavorite:(id)sender
 {
-  if ([path isEqual:FVRecentsLocation])
-    return;
-  NSMutableArray *favorites = [NSMutableArray
-      arrayWithArray:[[NSUserDefaults standardUserDefaults] arrayForKey:@"Favorites"]
-                         ? [[NSUserDefaults standardUserDefaults] arrayForKey:@"Favorites"]
-                         : [NSArray array]];
-  if (![favorites containsObject:path])
-    [favorites addObject:path];
-  [[NSUserDefaults standardUserDefaults] setObject:favorites forKey:@"Favorites"];
-  [self rebuildPlaces];
+  NSArray *candidates = [self favoriteCandidates];
+  if ([candidates count])
+    [self addFavorites:candidates atIndex:NSNotFound];
 }
 
 - (void)removeFavorite:(id)sender
 {
-  NSMutableArray *favorites = [NSMutableArray
-      arrayWithArray:[[NSUserDefaults standardUserDefaults] arrayForKey:@"Favorites"]
-                         ? [[NSUserDefaults standardUserDefaults] arrayForKey:@"Favorites"]
-                         : [NSArray array]];
+  NSMutableArray *favorites = FVFavoritePaths ();
   NSString *selected = [sidebar selectedRow] >= 0
                            ? [[sidebar itemAtRow:[sidebar selectedRow]] objectForKey:@"path"] : nil;
   if ([sender isKindOfClass:[NSMenuItem class]]
@@ -2501,8 +2709,7 @@ FVClickStayedPut (NSEvent *down)
     [favorites removeObject:[sender representedObject]];
   else
     [favorites removeObject:selected && [favorites containsObject:selected] ? selected : path];
-  [[NSUserDefaults standardUserDefaults] setObject:favorites forKey:@"Favorites"];
-  [self rebuildPlaces];
+  FVSaveFavoritePaths (favorites);
 }
 
 - (void)copy:(id)sender
@@ -3180,10 +3387,24 @@ FVClickStayedPut (NSEvent *down)
 {
   NSMutableSet *currentMounts = [NSMutableSet setWithArray:
       [[NSWorkspace sharedWorkspace] mountedLocalVolumePaths]];
-  [currentMounts addObjectsFromArray:[FVMounts networkPaths]];
+  NSArray *networkPaths = [FVMounts networkPaths];
+  [currentMounts addObjectsFromArray:networkPaths];
   [currentMounts addObjectsFromArray:FVVolumesInMountRoots ()];
   if (!closed && ![currentMounts isEqualToSet:mountedVolumePaths])
     [self rebuildPlaces];
+  else if (!closed)
+    {
+      /* Grey out a favorite whose folder went away, and restore one that's back. */
+      NSArray *shown = [[self favoritesGroup] objectForKey:@"children"];
+      NSUInteger i;
+      for (i = 0; i < [shown count]; i++)
+        if (FVFavoriteIsMissing ([[shown objectAtIndex:i] objectForKey:@"path"], networkPaths)
+            != [[[shown objectAtIndex:i] objectForKey:@"missing"] boolValue])
+          {
+            [self rebuildPlaces];
+            break;
+          }
+    }
   if (closed || loading || operation || searching || monitorBusy)
     return;
   monitorBusy = YES;
@@ -3302,10 +3523,11 @@ FVClickStayedPut (NSEvent *down)
   NSUInteger count = [[self selectedPaths] count];
   if ([path isEqual:FVRecentsLocation]
       && (action == @selector (newFolder:) || action == @selector (paste:)
-          || action == @selector (duplicate:) || action == @selector (addFavorite:)
-          || action == @selector (parent:) || action == @selector (search:)
+          || action == @selector (duplicate:) || action == @selector (parent:) || action == @selector (search:)
           || action == @selector (columnMode:) || (action == @selector (info:) && !count)))
     return NO;
+  if (action == @selector (addFavorite:))
+    return [[self favoriteCandidates] count] > 0;
   if (action == @selector (toggleHidden:))
     [item setState:hidden ? NSOnState : NSOffState];
   if (action == @selector (toggleFolders:))
