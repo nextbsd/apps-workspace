@@ -10,6 +10,14 @@ Workspace. On normal quit it removes that default if it still points to
 Workspace. Explicit
 application choices and file opening continue through NSWorkspace associations.
 
+## Help
+
+Help → Workspace Help opens a help window with `Resources/WorkspaceHelp.rtf`,
+which is installed in the app bundle. It covers the views, the Locations list,
+copying and moving, Trash and Delete Permanently, Undo, Open With, search, the
+Inspector, what the safety checks mean, and the touchpad gestures that work in
+File Viewer. Edit the RTF to change it.
+
 ## Gestures and shortcuts
 
 The touchpad gestures and keyboard shortcuts for moving around the desktop, what works today and what's planned, are in [docs/Gestures.md](docs/Gestures.md).

@@ -28,6 +28,7 @@
   NSPanel *preferencesPanel;
   NSButton *thumbnailCheckbox;
   NSButton *hiddenFilesCheckbox;
+  NSWindow *helpWindow;
 }
 
 - (BOOL)openFile:(NSString *)path withApplication:(NSString *)application

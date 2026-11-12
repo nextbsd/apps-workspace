@@ -220,15 +220,73 @@ FVMigrateFileViewerDefaults (void)
   [self openPath:NSHomeDirectory ()];
 }
 
+/* Help → Workspace Help shows the help document bundled with the app,
+   Resources/WorkspaceHelp.rtf, in a window of its own. */
 - (void)help:(id)sender
 {
-  FVRunAlert (
-      @"Workspace Help", @"Workspace",
-      @"Use the path menu to visit ancestors. Filter matches names in the current directory; View "
-      @"→ Recursive Filename Search searches beneath it. Columns select folders on a single click "
-      @"and open files on double-click. Drag copies files; use Cut/Paste or Move To for explicit "
-      @"moves. Cancel Work stops listing or copying. See README.md for safety details.",
-      @"OK", nil);
+  if (!helpWindow)
+    {
+      NSString *file = [[NSBundle mainBundle] pathForResource:@"WorkspaceHelp" ofType:@"rtf"];
+      NSData *data = file ? [NSData dataWithContentsOfFile:file] : nil;
+      NSMutableAttributedString *text = data
+          ? AUTORELEASE ([[NSMutableAttributedString alloc] initWithRTF:data
+                                                    documentAttributes:NULL])
+          : nil;
+      if (![text length])
+        {
+          FVRunAlert (@"Workspace Help", @"Help isn’t available.",
+                      @"The help document is missing from Workspace.app. Reinstall Workspace.",
+                      @"OK", nil);
+          return;
+        }
+      /* Follow the theme's text colour and fonts rather than the document's
+         black Helvetica: headings (larger than 13 points) are bold. */
+      [text addAttribute:NSForegroundColorAttributeName
+                   value:[NSColor textColor]
+                   range:NSMakeRange (0, [text length])];
+      NSUInteger index = 0;
+      while (index < [text length])
+        {
+          NSRange run;
+          NSFont *font = [text attribute:NSFontAttributeName atIndex:index effectiveRange:&run];
+          CGFloat size = font ? [font pointSize] : 12;
+          [text addAttribute:NSFontAttributeName
+                       value:size > 13 ? [NSFont boldSystemFontOfSize:size]
+                                       : [NSFont systemFontOfSize:size + 1]
+                       range:run];
+          index = NSMaxRange (run);
+        }
+      helpWindow = [[NSWindow alloc]
+          initWithContentRect:NSMakeRect (0, 0, 620, 640)
+                    styleMask:NSTitledWindowMask | NSClosableWindowMask
+                              | NSMiniaturizableWindowMask | NSResizableWindowMask
+                      backing:NSBackingStoreBuffered
+                        defer:NO];
+      [helpWindow setTitle:@"Workspace Help"];
+      [helpWindow setReleasedWhenClosed:NO];
+      [helpWindow setMinSize:NSMakeSize (360, 240)];
+      NSScrollView *scroll = AUTORELEASE ([[NSScrollView alloc]
+          initWithFrame:[[helpWindow contentView] bounds]]);
+      [scroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+      [scroll setHasVerticalScroller:YES];
+      NSTextView *view = AUTORELEASE ([[NSTextView alloc]
+          initWithFrame:NSMakeRect (0, 0, [scroll contentSize].width, [scroll contentSize].height)]);
+      [view setEditable:NO];
+      [view setSelectable:YES];
+      [view setRichText:YES];
+      [view setBackgroundColor:[NSColor textBackgroundColor]];
+      [view setTextContainerInset:NSMakeSize (16, 16)];
+      [view setVerticallyResizable:YES];
+      [view setHorizontallyResizable:NO];
+      [view setAutoresizingMask:NSViewWidthSizable];
+      [[view textContainer] setWidthTracksTextView:YES];
+      [[view textStorage] setAttributedString:text];
+      [scroll setDocumentView:view];
+      [[helpWindow contentView] addSubview:scroll];
+      [helpWindow center];
+      [helpWindow setFrameAutosaveName:@"Workspace Help"];
+    }
+  [helpWindow makeKeyAndOrderFront:self];
 }
 
 - (void)preferences:(id)sender
@@ -297,6 +355,7 @@ FVMigrateFileViewerDefaults (void)
   RELEASE (hiddenFilesCheckbox);
   RELEASE (thumbnailCheckbox);
   RELEASE (preferencesPanel);
+  RELEASE (helpWindow);
   RELEASE (windows);
   RELEASE (pendingPaths);
   DEALLOC;
