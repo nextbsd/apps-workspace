@@ -28,6 +28,11 @@
 + (NSString *)defaultApplicationForFile:(NSString *)path;
 + (void)setDefaultApplication:(NSString *)application forFile:(NSString *)path;
 + (BOOL)launchApplication:(NSString *)application file:(NSString *)path;
+/* Opening an application that is already running reopens it, as macOS
+   does: activate it, then send its delegate
+   -applicationShouldHandleReopen:hasVisibleWindows: over Distributed
+   Objects. app is the application's root proxy. */
++ (void)reopenApplication:(id)app;
 + (void)launchApplication:(NSString *)application file:(NSString *)path
         completionTarget:(id)target selector:(SEL)selector;
 

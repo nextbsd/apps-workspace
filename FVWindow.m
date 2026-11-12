@@ -2150,6 +2150,7 @@ FVClickStayedPut (NSEvent *down)
 
 - (void)windowDidBecomeKey:(NSNotification *)note
 {
+  [(FVApplication *)[NSApp delegate] viewerBecameKey:self];
   [[FVInspector sharedInspector] viewerSelectionChanged:self];
 }
 

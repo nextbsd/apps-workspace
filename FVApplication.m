@@ -168,14 +168,48 @@ FVMigrateFileViewerDefaults (void)
   [menu addItemWithTitle:@"Quit" action:@selector (terminate:) keyEquivalent:@"q"];
   [NSApp setMainMenu:menu];
   launched = YES;
-  if ([pendingPaths count])
+  /* Like the Finder, Workspace starts with no File Viewer unless it was
+     asked to open a folder: the first one comes when Workspace is opened
+     again (see -applicationShouldHandleReopen:hasVisibleWindows:). */
+  NSUInteger i;
+  for (i = 0; i < [pendingPaths count]; i++)
+    [self openPath:[pendingPaths objectAtIndex:i]];
+}
+
+/* Opening Workspace while it runs (its Dock tile, openapp Workspace, or
+   Workspace.app opened from a File Viewer) reopens it, as on macOS: bring
+   the most recently used File Viewer forward, restoring it if every one
+   is minimized, or open a new one at the home folder if none is open.
+   The senders reach the delegate over Distributed Objects (GSListener
+   forwards the message), so Workspace counts its own File Viewers rather
+   than trusting the flag. */
+- (BOOL)applicationShouldHandleReopen:(NSApplication *)app hasVisibleWindows:(BOOL)flag
+{
+  NSWindow *window = nil;
+  NSUInteger i;
+
+  for (i = [windows count]; i > 0 && window == nil; i--)
     {
-      NSUInteger i;
-      for (i = 0; i < [pendingPaths count]; i++)
-        [self openPath:[pendingPaths objectAtIndex:i]];
+      NSWindow *candidate = [[windows objectAtIndex:i - 1] window];
+      if ([candidate isVisible] && ![candidate isMiniaturized])
+        window = candidate;
     }
-  else
+  for (i = [windows count]; i > 0 && window == nil; i--)
+    {
+      NSWindow *candidate = [[windows objectAtIndex:i - 1] window];
+      if ([candidate isMiniaturized])
+        window = candidate;
+    }
+  [NSApp activateIgnoringOtherApps:YES];
+  if (window == nil)
     [self openPath:NSHomeDirectory ()];
+  else
+    {
+      if ([window isMiniaturized])
+        [window deminiaturize:self];
+      [window makeKeyAndOrderFront:self];
+    }
+  return NO;
 }
 
 - (void)openPath:(NSString *)value
@@ -226,6 +260,19 @@ FVMigrateFileViewerDefaults (void)
 - (void)viewerClosed:(id)controller
 {
   [windows removeObjectIdenticalTo:controller];
+}
+
+/* Keep the File Viewers in the order they were last used, most recent
+   last, for reopening. */
+- (void)viewerBecameKey:(id)controller
+{
+  NSUInteger index = [windows indexOfObjectIdenticalTo:controller];
+  if (index == NSNotFound || index + 1 == [windows count])
+    return;
+  RETAIN (controller);
+  [windows removeObjectAtIndex:index];
+  [windows addObject:controller];
+  RELEASE (controller);
 }
 
 - (void)newWindow:(id)sender
