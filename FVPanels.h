@@ -35,6 +35,8 @@ NSInteger FVRunModalPanel (NSPanel *panel);
 
 /* "12 bytes", "3.4 KB", "12.1 MB": decimal units, as Finder shows them. */
 NSString *FVSizeString (unsigned long long bytes);
+/* "Nov 12, 2026 at 12:44 AM" */
+NSString *FVDateString (NSDate *date);
 
 /* One panel, like NeXTSTEP's Processes panel, with a row for each running
    copy, move, Trash or delete: what it does, a progress bar, the item being

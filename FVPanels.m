@@ -379,7 +379,7 @@ FVItemsPhrase (NSArray *sources)
 
 @end
 
-static NSString *
+NSString *
 FVDateString (NSDate *date)
 {
   static NSDateFormatter *formatter = nil;

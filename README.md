@@ -105,8 +105,8 @@ Inspected development environment:
   thumbnails do not add history. Apps that do not publish shared history cannot
   be included. Recents supports list/icons, filtering, opening and file actions;
   it is a collection, so it cannot receive pasted files or new folders.
-- List view has name/icons, byte size, kind and modification time (Get Info
-  shows permissions and the full path). Click headers to sort or reverse sorting. Folders First is optional.
+- List view has name/icons, byte size, kind and modification time (the
+  Inspector shows the rest). Click headers to sort or reverse sorting. Folders First is optional.
   Arrow keys navigate, typing selects by prefix, Return/double-click opens.
 - File backgrounds are a shade darker than the window background in list,
   icon, and column views, following the theme.
@@ -153,7 +153,7 @@ Inspected development environment:
 - Columns use the current directory as their root. Single-clicking a folder
   expands a column without adding history; double-clicking it navigates the
   window and adds history. Files are selected, not previewed; double-click opens
-  them. Get Info is the explicit metadata view. Child columns load off-thread.
+  them. The Inspector (Get Info) is the explicit metadata view. Child columns load off-thread.
 - All file views support multiple selection: Control-click or Command-click
   toggles individual items, Shift-click extends a range, and Edit → Select All
   selects every item. Icons also support Shift-arrow range selection, keyboard
@@ -174,11 +174,20 @@ Inspected development environment:
 
 File → Open uses NSWorkspace associations. Recognized application bundles launch
 as packages; Show Package Contents enters them. Open With offers a native chooser
-for an application bundle without modifying associations. Get Info shows actual
-filesystem metadata and link destinations. Linux birth time comes from `statx`
-when available; GNUstep's inferred creation-date fallback is not presented as fact.
-Directory sizes are inode sizes, not
-recursive totals.
+for an application bundle without modifying associations.
+
+File → Get Info opens the Inspector, one window like NeXTSTEP's that follows
+the selection of the active File Viewer. It shows the item's icon, its name
+(type a new one and press Return to rename), kind, size (a folder's total and
+item count are counted in the background), location, created and modified
+dates, and a symbolic link's target. Owner, group and Read/Write/Execute
+checkboxes for owner, group and others apply with Apply (Revert discards).
+Only root can change the owner; an item's owner can change its permissions and
+pick among their own groups; everyone else sees them disabled, with a note
+saying why. A link's own permissions are not offered. Several selected items
+get one summary: their count, folders and files, total size and common
+location. Linux birth time comes from `statx` when available; GNUstep's
+inferred creation-date fallback is not presented as fact.
 
 ## Operations and safety semantics
 
@@ -265,6 +274,7 @@ permanent deletion is between top-level items, not inside NSFileManager removal.
 | `FVWindow` | Window/controller, navigation, sidebar/preferences, adapters, dialogs, info/results panels, polling adapter |
 | `FVModel` | File items and cancellable batched background listings/search |
 | `FVOperations` | Operation scheduling, progress, conflicts/results, POSIX copying/moving, guarded undo, home Trash |
+| `FVInspector` | The Inspector (Get Info): metadata, rename, owner, group and permissions |
 | `FVPanels` | The Processes (progress) window, the conflict panel, the shared modal panel helpers and size formatting |
 | `FVIconView` | Native icon layout, selection, keyboard navigation and drag/drop |
 | `FVLauncher` | File-type associations and direct application activation/launch |

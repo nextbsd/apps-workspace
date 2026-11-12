@@ -24,6 +24,7 @@
 #import "FVLauncher.h"
 #import "FVThumbnails.h"
 #import "FVPanels.h"
+#import "FVInspector.h"
 #include <sys/statvfs.h>
 #include <sys/stat.h>
 #ifndef __linux__
@@ -215,13 +216,6 @@ FVLabel (NSRect frame, NSString *text)
   [field setDrawsBackground:NO];
   [field setStringValue:text];
   return field;
-}
-
-static id
-FVMetadata (NSDictionary *attributes, NSString *key)
-{
-  id value = [attributes objectForKey:key];
-  return value ? value : @"Unavailable";
 }
 
 static NSButton *
@@ -1273,7 +1267,6 @@ FVClickStayedPut (NSEvent *down)
       [window setMinSize:NSMakeSize (760, 400)];
       [window setFrameAutosaveName:@"File Viewer"];
       cutChangeCount = -1;
-      infoPanels = [[NSMutableArray alloc] init];
       items = [[NSMutableArray alloc] init];
       history = [[NSMutableArray alloc] init];
       historyIndex = -1;
@@ -2091,15 +2084,18 @@ FVClickStayedPut (NSEvent *down)
     }
 }
 
+- (void)windowDidBecomeKey:(NSNotification *)note
+{
+  [[FVInspector sharedInspector] viewerSelectionChanged:self];
+}
+
 - (void)windowWillClose:(NSNotification *)note
 {
   [self endEditingName:NO];
   closed = YES;
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   [self invalidateThumbnails];
-  NSUInteger panelIndex;
-  for (panelIndex = 0; panelIndex < [infoPanels count]; panelIndex++)
-    [[infoPanels objectAtIndex:panelIndex] close];
+  [[FVInspector sharedInspector] viewerClosed:self];
   [listing cancel];
   RELEASE (listing);
   listing = nil;
@@ -2154,6 +2150,7 @@ FVClickStayedPut (NSEvent *down)
 
 - (void)selectionChanged
 {
+  [[FVInspector sharedInspector] viewerSelectionChanged:self];
   if (operation || [errors count])
     return;
   [status setStringValue:[NSString stringWithFormat:@"%lu items • %lu selected%@%@",
@@ -2459,18 +2456,7 @@ FVClickStayedPut (NSEvent *down)
       [self endEditingName:YES];
       return YES;
     }
-  NSString *dest = [[source stringByDeletingLastPathComponent] stringByAppendingPathComponent:name];
-  NSString *problem = nil;
-  struct stat a, b;
-  if (![FVOperations validName:name])
-    problem = FVInvalidNameMessage;
-  else if (lstat ([dest fileSystemRepresentation], &b) == 0
-           && (lstat ([source fileSystemRepresentation], &a) || a.st_dev != b.st_dev
-               || a.st_ino != b.st_ino))
-    problem = [NSString stringWithFormat:@"The name “%@” is already taken. Choose a different name.",
-                                         name];
-  else if (operation)
-    problem = @"Wait for the current operation to finish, then press Return again.";
+  NSString *problem = [self renameProblem:source toName:name];
   if (problem)
     {
       NSBeep ();
@@ -2478,11 +2464,45 @@ FVClickStayedPut (NSEvent *down)
       return NO;
     }
   [self endEditingName:YES];
+  [self renamePath:source toName:name];
+  return YES;
+}
+
+/* Why an item can't take this name now, or nil. */
+- (NSString *)renameProblem:(NSString *)source toName:(NSString *)name
+{
+  NSString *dest = [[source stringByDeletingLastPathComponent] stringByAppendingPathComponent:name];
+  struct stat a, b;
+  if (![FVOperations validName:name])
+    return FVInvalidNameMessage;
+  if (lstat ([dest fileSystemRepresentation], &b) == 0
+      && (lstat ([source fileSystemRepresentation], &a) || a.st_dev != b.st_dev
+          || a.st_ino != b.st_ino))
+    return [NSString stringWithFormat:@"The name “%@” is already taken. Choose a different name.",
+                                      name];
+  if (operation)
+    return @"Wait for the current operation to finish, then press Return again.";
+  return nil;
+}
+
+- (NSString *)renamePath:(NSString *)source toName:(NSString *)name
+{
+  if ([name isEqual:[source lastPathComponent]])
+    return nil;
+  NSString *problem = [self renameProblem:source toName:name];
+  if (problem)
+    return problem;
+  NSString *dest = [[source stringByDeletingLastPathComponent] stringByAppendingPathComponent:name];
   RELEASE (revealPath);
   revealPath = [dest copy];
   editRevealed = NO;
   [self runOperation:@"rename" paths:[NSArray arrayWithObject:source] destination:dest];
-  return YES;
+  return nil;
+}
+
+- (NSString *)currentPath
+{
+  return path;
 }
 
 /* Escape ends editing without renaming; a new folder keeps its default name. */
@@ -2575,57 +2595,10 @@ FVClickStayedPut (NSEvent *down)
   [self beginEditingName:[selected objectAtIndex:0]];
 }
 
+/* File → Get Info opens the Inspector, which then follows the selection. */
 - (void)info:(id)sender
 {
-  NSArray *selected = [self selectedPaths];
-  if (![selected count])
-    selected = [NSArray arrayWithObject:path];
-  NSMutableString *text = [NSMutableString string];
-  NSUInteger i;
-  for (i = 0; i < [selected count]; i++)
-    {
-      FVItem *item = [FVItem itemAtPath:[selected objectAtIndex:i]];
-      NSDictionary *a = [item attributes];
-      [text appendFormat:@"%@\n%@\nType: %@\nSize: %@ bytes\nModified: %@\nCreated: %@\nOwner: %@ "
-                         @"(%@)\nGroup: %@ (%@)\nPermissions: %@\n",
-                         [item name], [item path], [item kind], FVMetadata (a, NSFileSize),
-                         FVMetadata (a, NSFileModificationDate), FVMetadata (a, NSFileCreationDate),
-                         FVMetadata (a, NSFileOwnerAccountName),
-                         FVMetadata (a, NSFileOwnerAccountID),
-                         FVMetadata (a, NSFileGroupOwnerAccountName),
-                         FVMetadata (a, NSFileGroupOwnerAccountID),
-                         [item valueForColumn:@"permissions"]];
-      if ([item link])
-        [text appendFormat:@"Link target: %@\n", [[NSFileManager defaultManager]
-                                                     pathContentOfSymbolicLinkAtPath:[item path]]];
-      [text appendString:@"\n"];
-    }
-  [self showText:text title:@"Get Info"];
-}
-
-- (void)showText:(NSString *)text title:(NSString *)title
-{
-  NSPanel *panel = AUTORELEASE ([[NSPanel alloc]
-      initWithContentRect:NSMakeRect (180, 180, 620, 430)
-                styleMask:NSTitledWindowMask | NSClosableWindowMask | NSResizableWindowMask
-                  backing:NSBackingStoreBuffered
-                    defer:NO]);
-  [panel setReleasedWhenClosed:NO];
-  [panel setTitle:title];
-  NSScrollView *sv =
-      AUTORELEASE ([[NSScrollView alloc] initWithFrame:[[panel contentView] bounds]]);
-  [sv setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
-  [sv setHasVerticalScroller:YES];
-  NSTextView *view = AUTORELEASE ([[NSTextView alloc] initWithFrame:[sv bounds]]);
-  [view setString:text];
-  [view setEditable:NO];
-  [view setVerticallyResizable:YES];
-  [view setAutoresizingMask:NSViewWidthSizable];
-  [[view textContainer] setWidthTracksTextView:YES];
-  [sv setDocumentView:view];
-  [[panel contentView] addSubview:sv];
-  [infoPanels addObject:panel];
-  [panel makeKeyAndOrderFront:self];
+  [[FVInspector sharedInspector] showForViewer:self];
 }
 
 - (void)openNewWindow:(id)sender
@@ -3562,7 +3535,6 @@ FVClickStayedPut (NSEvent *down)
   RELEASE (lastStamp);
   RELEASE (spaceDescription);
   RELEASE (sortKey);
-  RELEASE (infoPanels);
   RELEASE (undoRecords);
   [nameEditor setDelegate:nil];
   RELEASE (nameEditor);

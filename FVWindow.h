@@ -30,7 +30,6 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
 @interface FVWindow : NSWindowController <NSTextFieldDelegate>
 {
   NSString *path;
-  NSMutableArray *infoPanels;
   NSMutableArray *items;
   NSMutableArray *history;
   NSInteger historyIndex;
@@ -105,5 +104,9 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
 - (void)beginEditingName:(NSString *)value;
 - (BOOL)commitNameEdit;
 - (void)endEditingName:(BOOL)refocus;
+/* The folder the viewer shows. */
+- (NSString *)currentPath;
+/* Renames an item in place; returns why it can't, or nil once started. */
+- (NSString *)renamePath:(NSString *)source toName:(NSString *)name;
 
 @end

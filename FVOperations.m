@@ -798,6 +798,37 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
   return YES;
 }
 
++ (BOOL)setOwner:(uid_t)owner
+           group:(gid_t)group
+     permissions:(mode_t)permissions
+          ofPath:(NSString *)path
+           error:(NSError **)error
+{
+  struct stat st;
+  NSString *name = [path lastPathComponent];
+  if (!FVRepresentablePath (path) || lstat ([path fileSystemRepresentation], &st))
+    return FVError (error, [NSString stringWithFormat:@"“%@” is no longer there.", name]);
+  if ((st.st_uid != owner || st.st_gid != group)
+      && lchown ([path fileSystemRepresentation], st.st_uid != owner ? owner : (uid_t)-1,
+                 st.st_gid != group ? group : (gid_t)-1))
+    return FVError (error, errno == EPERM
+        ? [NSString stringWithFormat:@"You can’t change the owner or group of “%@”.", name]
+        : [NSString stringWithFormat:@"The owner of “%@” couldn’t be changed: %s.", name,
+                                     strerror (errno)]);
+  mode_t mode = (st.st_mode & 07000 & ~(st.st_uid != owner || st.st_gid != group ? 06000 : 0))
+                | (permissions & 0777);
+  if ((st.st_mode & 07777) == mode)
+    return YES;
+  if (S_ISLNK (st.st_mode))
+    return FVError (error, @"A symbolic link’s permissions can’t be changed.");
+  if (fchmodat (AT_FDCWD, [path fileSystemRepresentation], mode, 0))
+    return FVError (error, errno == EPERM
+        ? [NSString stringWithFormat:@"You can’t change the permissions of “%@”.", name]
+        : [NSString stringWithFormat:@"The permissions of “%@” couldn’t be changed: %s.", name,
+                                     strerror (errno)]);
+  return YES;
+}
+
 - (BOOL)undoRecord:(NSDictionary *)record error:(NSError **)error
 {
   NSString *current = [record objectForKey:@"current"],
