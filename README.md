@@ -26,9 +26,9 @@ settings, whose defaults come from the active GNUstep theme
 ([nextbsd-theme](https://github.com/nextbsd/nextbsd-theme#desktop-defaults)):
 
 - **Minimize windows:** NeXT miniwindows, WindowServer previews or into the
-  Dock (`NBMinimizeStyle`: `nextstep`, `previews`, `dock`). It applies to
-  windows minimized from then on. "Into the Dock" needs WindowServer's
-  `MinimizeIntoDock` default on.
+  Dock (`NBMinimizeStyle`: `nextstep`, `previews`, `dock`; the default is
+  into the Dock, as live previews in its minimized-windows section). It
+  applies to windows minimized from then on.
 - **Dock position:** right, left, top or bottom (`NBDockPosition`). Workspace
   also writes the Dock's own `DockPlacement` default.
 - **Menu style:** NeXT (floating vertical menus with tear-off), In-window

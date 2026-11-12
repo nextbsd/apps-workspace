@@ -73,7 +73,7 @@ static NSString *
 FVBuiltinValue (NSString *key)
 {
   if ([key isEqual:FVMinimizeStyleKey])
-    return @"previews";
+    return @"dock";
   if ([key isEqual:FVDockPositionKey])
     return @"right";
   if ([key isEqual:FVMenuStyleKey])
