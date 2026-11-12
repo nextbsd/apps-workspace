@@ -1431,7 +1431,6 @@ FVClickStayedPut (NSEvent *down)
       sortKey = [@"date" copy];
       ascending = NO;
       [table moveColumn:[table columnWithIdentifier:@"date"] toColumn:1];
-      [table moveColumn:[table columnWithIdentifier:@"path"] toColumn:2];
       if (mode == 1)
         [self listMode:nil];
       RELEASE (spaceDescription);
@@ -1439,7 +1438,6 @@ FVClickStayedPut (NSEvent *down)
       [self refresh:nil];
       return;
     }
-  [table moveColumn:[table columnWithIdentifier:@"path"] toColumn:[[table tableColumns] count] - 1];
   [table moveColumn:[table columnWithIdentifier:@"date"] toColumn:3];
   NSString *part = path;
   while ([part length])
