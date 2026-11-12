@@ -98,8 +98,8 @@ Inspected development environment:
   thumbnails do not add history. Apps that do not publish shared history cannot
   be included. Recents supports list/icons, filtering, opening and file actions;
   it is a collection, so it cannot receive pasted files or new folders.
-- List view has name/icons, byte size, kind, modification time, permissions and
-  full path. Click headers to sort or reverse sorting. Folders First is optional.
+- List view has name/icons, byte size, kind, modification time and full path
+  (Get Info shows permissions). Click headers to sort or reverse sorting. Folders First is optional.
   Arrow keys navigate, typing selects by prefix, Return/double-click opens.
 - File backgrounds are a shade darker than the window background in list,
   icon, and column views, following the theme.

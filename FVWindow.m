@@ -1041,16 +1041,18 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       [table setTarget:self];
       [table setDoubleAction:@selector (open:)];
       NSArray *keys = [NSArray
-          arrayWithObjects:@"name", @"size", @"kind", @"date", @"permissions", @"path", nil];
+          arrayWithObjects:@"name", @"size", @"kind", @"date", @"path", nil];
       NSArray *titles = [NSArray arrayWithObjects:@"Name", @"Size (bytes)", @"Kind", @"Modified",
-                                                  @"Permissions", @"Full Path", nil];
+                                                  @"Full Path", nil];
       NSUInteger i;
       for (i = 0; i < [keys count]; i++)
         {
           NSTableColumn *column =
               AUTORELEASE ([[NSTableColumn alloc] initWithIdentifier:[keys objectAtIndex:i]]);
           [[column headerCell] setStringValue:[titles objectAtIndex:i]];
-          [column setWidth:i == 0 ? 250 : (i == 3 || i == 5 ? 210 : 110)];
+          NSString *key = [keys objectAtIndex:i];
+          [column setWidth:[key isEqual:@"name"] ? 250
+              : ([key isEqual:@"date"] || [key isEqual:@"path"] ? 210 : 110)];
           /* NSTableColumn is editable by default, and a double-click on an
              editable column starts editing instead of sending the double
              action, so nothing opened unless Return was pressed. */
