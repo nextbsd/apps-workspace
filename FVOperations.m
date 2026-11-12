@@ -24,8 +24,33 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <fts.h>
 #include <errno.h>
 #include <time.h>
+
+unsigned long long
+FVTreeSize (NSString *path, unsigned long long *entries, volatile BOOL *stop)
+{
+  unsigned long long total = 0, count = 0;
+  char *roots[2] = { (char *)[path fileSystemRepresentation], NULL };
+  FTS *tree = fts_open (roots, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL);
+  if (tree)
+    {
+      FTSENT *entry;
+      while ((!stop || !*stop) && (entry = fts_read (tree)))
+        {
+          if (entry->fts_info == FTS_DP)
+            continue;
+          count++;
+          if (entry->fts_info == FTS_F && entry->fts_statp)
+            total += entry->fts_statp->st_size;
+        }
+      fts_close (tree);
+    }
+  if (entries)
+    *entries = count;
+  return total;
+}
 
 static BOOL
 FVError (NSError **error, NSString *message)
@@ -172,6 +197,7 @@ FVCopyAt (int srcDir, const char *s, NSString *src, int dstDir, const char *d, N
 {
   if ([job cancelled])
     return FVError (error, @"Cancelled; source retained.");
+  [job copyingEntry:src];
   struct stat before, after;
   if (fstatat (srcDir, s, &before, AT_SYMLINK_NOFOLLOW))
     return FVError (error, [NSString stringWithFormat:@"%@: %s", src, strerror (errno)]);
@@ -244,6 +270,7 @@ FVCopyAt (int srcDir, const char *s, NSString *src, int dstDir, const char *d, N
             }
           if (!ok)
             break;
+          [job copiedBytes:count];
         }
       if (fstat (input, &after) || !FVSameStat (before, after))
         {
@@ -512,6 +539,7 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
   RELEASE (target);
   RELEASE (policy);
   RELEASE (notes);
+  RELEASE (currentName);
   DEALLOC;
 }
 
@@ -529,6 +557,45 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
   {
     return cancelled;
   }
+}
+
+/* What the progress window shows: the item being handled and how far along
+   the whole operation is, in bytes where they were counted. */
+- (void)report:(BOOL)force
+{
+  NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+  if (!force && now - lastReport < .1)
+    return;
+  lastReport = now;
+  NSDictionary *progress = [NSDictionary dictionaryWithObjectsAndKeys:
+      self, @"operation", kind, @"kind",
+      [NSNumber numberWithUnsignedInteger:itemIndex], @"index",
+      [NSNumber numberWithUnsignedInteger:[sources count]], @"count",
+      currentName ? currentName : @"", @"name",
+      destination ? destination : @"", @"destination",
+      [NSNumber numberWithUnsignedLongLong:bytesDone], @"bytesDone",
+      [NSNumber numberWithUnsignedLongLong:bytesTotal], @"bytesTotal",
+      [NSNumber numberWithUnsignedLongLong:entriesDone], @"entriesDone",
+      [NSNumber numberWithUnsignedLongLong:entriesTotal], @"entriesTotal",
+      [NSNumber numberWithBool:preparing], @"preparing", nil];
+  [target performSelectorOnMainThread:@selector (operationProgress:)
+                           withObject:progress
+                        waitUntilDone:NO];
+}
+
+- (void)copiedBytes:(unsigned long long)count
+{
+  bytesDone += count;
+  [self report:NO];
+}
+
+- (void)copyingEntry:(NSString *)path
+{
+  entriesDone++;
+  if ([NSDate timeIntervalSinceReferenceDate] - lastReport < .1)
+    return;
+  ASSIGN (currentName, [path lastPathComponent]);
+  [self report:YES];
 }
 
 - (void)start
@@ -770,10 +837,42 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
   NSMutableArray *completed = [NSMutableArray array], *failed = [NSMutableArray array],
                  *skipped = [NSMutableArray array], *undo = [NSMutableArray array];
   NSUInteger i;
-  for (i = 0; i < [sources count] && ![self cancelled]; i++)
+  /* Count the bytes that will be copied, so the progress bar follows them.
+     A move within one filesystem is a rename and counts by items. */
+  unsigned long long *sizes = calloc ([sources count] + 1, sizeof (unsigned long long));
+  unsigned long long *counts = calloc ([sources count] + 1, sizeof (unsigned long long));
+  BOOL copies = [kind isEqual:@"copy"] || [kind isEqual:@"duplicate"];
+  if (copies || [kind isEqual:@"move"])
+    {
+      struct stat folder, item;
+      BOOL haveFolder = destination && stat ([destination fileSystemRepresentation], &folder) == 0;
+      preparing = YES;
+      for (i = 0; i < [sources count] && ![self cancelled]; i++)
+        {
+          NSString *source = [sources objectAtIndex:i];
+          if (![source isKindOfClass:[NSString class]]
+              || lstat ([source fileSystemRepresentation], &item))
+            continue;
+          if (!copies && haveFolder && folder.st_dev == item.st_dev)
+            continue;
+          ASSIGN (currentName, [source lastPathComponent]);
+          [self report:NO];
+          sizes[i] = FVTreeSize (source, &counts[i], (volatile BOOL *)&cancelled);
+          bytesTotal += sizes[i];
+          entriesTotal += counts[i];
+        }
+      preparing = NO;
+    }
+  unsigned long long base = 0, entryBase = 0;
+  for (i = 0; i < [sources count] && ![self cancelled];
+       base += sizes[i], bytesDone = base, entryBase += counts[i], entriesDone = entryBase, i++)
     {
       id input = [sources objectAtIndex:i];
       NSString *source = [kind isEqual:@"undo"] ? [input objectForKey:@"current"] : input;
+      itemIndex = i;
+      ASSIGN (currentName, [source isKindOfClass:[NSString class]] ? [source lastPathComponent]
+                                                                  : @"");
+      [self report:YES];
       NSError *error = nil;
       BOOL ok = NO;
       if (!FVRepresentablePath (source))
@@ -790,12 +889,6 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
           [failed addObject:FVFailure (source, [NSString stringWithUTF8String:strerror (errno)])];
           continue;
         }
-      NSString *message =
-          [NSString stringWithFormat:@"%@ %lu/%lu: %@", kind, (unsigned long)i + 1,
-                                     (unsigned long)[sources count], [source lastPathComponent]];
-      [target performSelectorOnMainThread:@selector (operationProgress:)
-                               withObject:message
-                            waitUntilDone:NO];
       if ([kind isEqual:@"undo"])
         ok = [self undoRecord:input error:&error];
       else if ([kind isEqual:@"trash"])
@@ -919,6 +1012,9 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
                                                               @"snapshot", nil]
                      atIndex:0];
         }
+      else if ([self cancelled])
+        /* Stopped part way: the item is left as it was, which is no failure to report. */
+        [skipped addObject:source];
       else
         [failed addObject:FVFailure (source, error ? [error localizedDescription]
                                                    : [NSString stringWithUTF8String:strerror (errno)])];
@@ -928,6 +1024,8 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
                                    failed, @"failed",
                                    skipped, @"skipped", notes, @"notes",
                                    [NSNumber numberWithBool:[self cancelled]], @"cancelled", nil];
+  free (sizes);
+  free (counts);
   [target performSelectorOnMainThread:@selector (operationFinished:)
                            withObject:result
                         waitUntilDone:NO];
