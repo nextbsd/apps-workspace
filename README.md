@@ -10,6 +10,10 @@ Workspace. On normal quit it removes that default if it still points to
 Workspace. Explicit
 application choices and file opening continue through NSWorkspace associations.
 
+## Gestures and shortcuts
+
+The touchpad gestures and keyboard shortcuts for moving around the desktop, what works today and what's planned, are in [docs/Gestures.md](docs/Gestures.md).
+
 ## Credits
 
 Workspace is written and maintained by Joseph Maloney. It is based on
