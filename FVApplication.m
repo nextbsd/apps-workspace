@@ -20,6 +20,7 @@
 #import "FVApplication.h"
 #import "FVWindow.h"
 #import "FVThumbnails.h"
+#import "FVDesktopSettings.h"
 
 static void
 FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArray *keys)
@@ -298,38 +299,57 @@ FVMigrateFileViewerDefaults (void)
   if (!preferencesPanel)
     {
       preferencesPanel = [[NSPanel alloc]
-          initWithContentRect:NSMakeRect (0, 0, 430, 160)
+          initWithContentRect:NSMakeRect (0, 0, 540, 230)
                     styleMask:NSTitledWindowMask | NSClosableWindowMask
                       backing:NSBackingStoreBuffered defer:NO];
       [preferencesPanel setTitle:@"Preferences"];
       [preferencesPanel setReleasedWhenClosed:NO];
-      thumbnailCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 106, 390, 28)];
+      /* General: the file viewer's settings. Desktop: NextBSD's desktop
+         settings, whose defaults come from the theme. */
+      NSTabView *tabs = AUTORELEASE ([[NSTabView alloc]
+          initWithFrame:NSMakeRect (10, 10, 520, 210)]);
+      [[preferencesPanel contentView] addSubview:tabs];
+      NSRect page = [tabs contentRect];
+      page.origin = NSZeroPoint;
+      NSView *general = AUTORELEASE ([[NSView alloc] initWithFrame:page]);
+      CGFloat top = NSHeight (page);
+      thumbnailCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, top - 44, 390, 28)];
       [thumbnailCheckbox setButtonType:NSSwitchButton];
       [thumbnailCheckbox setTitle:@"Show thumbnails"];
       [thumbnailCheckbox setTarget:self];
       [thumbnailCheckbox setAction:@selector (toggleThumbnails:)];
-      [[preferencesPanel contentView] addSubview:thumbnailCheckbox];
-      hiddenFilesCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, 66, 390, 28)];
+      [general addSubview:thumbnailCheckbox];
+      hiddenFilesCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect (20, top - 84, 390, 28)];
       [hiddenFilesCheckbox setButtonType:NSSwitchButton];
       [hiddenFilesCheckbox setTitle:@"Show hidden files and directories"];
       [hiddenFilesCheckbox setTarget:self];
       [hiddenFilesCheckbox setAction:@selector (toggleHiddenFiles:)];
-      [[preferencesPanel contentView] addSubview:hiddenFilesCheckbox];
+      [general addSubview:hiddenFilesCheckbox];
       [[NSNotificationCenter defaultCenter] addObserver:self
           selector:@selector (hiddenFilesPreferencesChanged:) name:@"FVHiddenFilesChanged" object:nil];
       NSTextField *label = AUTORELEASE ([[NSTextField alloc]
-          initWithFrame:NSMakeRect (24, 20, 380, 24)]);
+          initWithFrame:NSMakeRect (24, 12, 380, 24)]);
       [label setStringValue:@"Changes apply to all open windows."];
       [label setEditable:NO];
       [label setSelectable:NO];
       [label setBordered:NO];
       [label setBezeled:NO];
       [label setDrawsBackground:NO];
-      [[preferencesPanel contentView] addSubview:label];
+      [general addSubview:label];
+      NSTabViewItem *item = AUTORELEASE ([[NSTabViewItem alloc] initWithIdentifier:@"General"]);
+      [item setLabel:@"General"];
+      [item setView:general];
+      [tabs addTabViewItem:item];
+      desktopSettings = [[FVDesktopSettings alloc] initWithFrame:page];
+      item = AUTORELEASE ([[NSTabViewItem alloc] initWithIdentifier:@"Desktop"]);
+      [item setLabel:@"Desktop"];
+      [item setView:[desktopSettings view]];
+      [tabs addTabViewItem:item];
       [preferencesPanel center];
     }
   [thumbnailCheckbox setState:[FVThumbnailOperation enabled] ? NSOnState : NSOffState];
   [self hiddenFilesPreferencesChanged:nil];
+  [desktopSettings refresh];
   [preferencesPanel makeKeyAndOrderFront:self];
 }
 
@@ -358,6 +378,7 @@ FVMigrateFileViewerDefaults (void)
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   RELEASE (hiddenFilesCheckbox);
   RELEASE (thumbnailCheckbox);
+  RELEASE (desktopSettings);
   RELEASE (preferencesPanel);
   RELEASE (helpWindow);
   RELEASE (windows);

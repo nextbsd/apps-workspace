@@ -19,6 +19,7 @@
 
 #import <AppKit/AppKit.h>
 
+@class FVDesktopSettings;
 
 @interface FVApplication : NSObject
 {
@@ -28,6 +29,7 @@
   NSPanel *preferencesPanel;
   NSButton *thumbnailCheckbox;
   NSButton *hiddenFilesCheckbox;
+  FVDesktopSettings *desktopSettings;
   NSWindow *helpWindow;
 }
 

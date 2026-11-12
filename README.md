@@ -18,6 +18,26 @@ copying and moving, Trash and Delete Permanently, Undo, Open With, search, the
 Inspector, what the safety checks mean, and the touchpad gestures that work in
 File Viewer. Edit the RTF to change it.
 
+## Preferences
+
+Workspace → Preferences has two tabs. **General** holds the file viewer's
+settings (thumbnails, hidden files). **Desktop** holds NextBSD's desktop
+settings, whose defaults come from the active GNUstep theme
+([nextbsd-theme](https://github.com/nextbsd/nextbsd-theme#desktop-defaults)):
+
+- **Minimize windows:** NeXT miniwindows, WindowServer previews or into the
+  Dock (`NBMinimizeStyle`: `nextstep`, `previews`, `dock`). It applies to
+  windows minimized from then on. "Into the Dock" needs WindowServer's
+  `MinimizeIntoDock` default on.
+- **Dock position:** right, left, top or bottom (`NBDockPosition`). Workspace
+  also writes the Dock's own `DockPlacement` default.
+
+Each menu has "Use theme default", which removes the user's value. The user's
+values go in `NSGlobalDomain` under the same keys. After a change, Workspace
+posts the distributed notification `org.nextbsd.DesktopSettingsChanged`, with
+the `key` that changed and its effective `value`. Window mode and menu style
+will join this tab once tiling and the other menu styles exist.
+
 ## Gestures and shortcuts
 
 The touchpad gestures and keyboard shortcuts for moving around the desktop, what works today and what's planned, are in [docs/Gestures.md](docs/Gestures.md).
