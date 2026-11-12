@@ -1,6 +1,6 @@
 /*
  * This file is part of Workspace.
- * Copyright (C) 2026 Workspace contributors
+ * Copyright (C) 2026 FileViewer contributors
  *
  * Workspace is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3,

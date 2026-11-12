@@ -2,11 +2,16 @@
   ApplicationName = Workspace;
   ApplicationDescription = "The NextBSD workspace and file viewer";
   ApplicationRelease = "27.0";
-  Authors = ("Gregory John Casamento <greg.casamento@gmail.com>", "Joseph Maloney <pkgdemonteam@gmail.com>");
+  Authors = (
+    "Joseph Maloney <pkgdemonteam@gmail.com>",
+    "",
+    "Based on FileViewer by:",
+    "Gregory John Casamento <greg.casamento@gmail.com>"
+  );
   URL = "https://github.com/pkgdemon/apps-fileviewer";
-  Copyright = "Copyright (C) 2026 Gregory John Casamento and Workspace contributors";
+  Copyright = "Copyright (C) 2026 Joseph Maloney. Based on FileViewer, Copyright (C) 2026 Gregory John Casamento";
   CopyrightDescription = "GNU General Public License version 3 or later; no warranty.";
-  NSHumanReadableCopyright = "Copyright (C) 2026 Gregory John Casamento and Workspace contributors";
+  NSHumanReadableCopyright = "Copyright (C) 2026 Joseph Maloney. Based on FileViewer, Copyright (C) 2026 Gregory John Casamento";
   NSPrincipalClass = NSApplication;
   NSIcon = "Workspace.png";
   CFBundleIconFile = "Workspace.png";

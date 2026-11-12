@@ -10,6 +10,11 @@ Workspace. On normal quit it removes that default if it still points to
 Workspace. Explicit
 application choices and file opening continue through NSWorkspace associations.
 
+## Credits
+
+Workspace is written and maintained by Joseph Maloney. It is based on
+FileViewer by Gregory John Casamento ([gcasa/Finder](https://github.com/gcasa/Finder)).
+
 ## Screenshot
 
 <img width="1358" height="1068" alt="Finder" src="https://github.com/user-attachments/assets/5387cd2b-87e4-4f22-8937-ed31e30b71e6" />
