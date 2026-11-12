@@ -180,7 +180,8 @@ Only one operation runs per window; other windows remain independent.
   the installed GNUstep file-list type `NSFilenamesPboardType`.
 - Cut does not remove anything initially. Paste moves. Successful entries are
   removed from the cut list only if the clipboard has not since changed; failed
-  entries remain available. Move To explicitly chooses another destination.
+  entries remain available. Move To… picks the destination in a folder chooser
+  that starts in the folder holding the selection.
 - Rename edits the name in place in the list, column and icon views; Return on a
   single selected item and a slow second click on its name start it too. The name
   is selected without its extension; Return renames and Escape cancels. New Folder creates "New Folder" (or "New Folder 2"…)
