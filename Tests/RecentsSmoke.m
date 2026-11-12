@@ -111,7 +111,7 @@ main (void)
   CHECK ([[[[table tableColumnWithIdentifier:@"date"] headerCell] stringValue]
       isEqual:@"Last Accessed"]);
   CHECK ([table columnWithIdentifier:@"date"] == 1);
-  CHECK ([table columnWithIdentifier:@"path"] == 2);
+  CHECK ([table columnWithIdentifier:@"path"] == -1);
   NSView *content = [[window window] contentView];
   [content display];
   NSBitmapImageRep *snapshot = [content bitmapImageRepForCachingDisplayInRect:[content bounds]];
@@ -158,7 +158,7 @@ main (void)
   [window performSelector:@selector (filterChanged:) withObject:nil];
   Loaded (window);
   CHECK ([[window items] count] == 2);
-  CHECK ([table columnWithIdentifier:@"path"] == 2);
+  CHECK ([table columnWithIdentifier:@"date"] == 1);
   [filter setStringValue:@""];
   [window performSelector:@selector (filterChanged:) withObject:nil];
   Loaded (window);
