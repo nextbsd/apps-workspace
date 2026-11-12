@@ -31,12 +31,19 @@ settings, whose defaults come from the active GNUstep theme
   `MinimizeIntoDock` default on.
 - **Dock position:** right, left, top or bottom (`NBDockPosition`). Workspace
   also writes the Dock's own `DockPlacement` default.
+- **Menu style:** NeXT (floating vertical menus with tear-off), In-window
+  (each window carries the menu) or Mac menu bar (one bar along the top for
+  the active app) (`NBMenuStyle`: `nextstep`, `inwindow`, `macmenubar`).
+  Running apps switch at once: the NextBSD GNUstep backend rebuilds their
+  menus when the notification below comes
+  ([libs-back#3](https://github.com/nextbsd/libs-back/issues/3)). A Dock on
+  the top edge sits below the Mac menu bar.
 
 Each menu has "Use theme default", which removes the user's value. The user's
 values go in `NSGlobalDomain` under the same keys. After a change, Workspace
 posts the distributed notification `org.nextbsd.DesktopSettingsChanged`, with
-the `key` that changed and its effective `value`. Window mode and menu style
-will join this tab once tiling and the other menu styles exist.
+the `key` that changed and its effective `value`. Window mode will join this
+tab once tiling exists.
 
 ## Gestures and shortcuts
 
