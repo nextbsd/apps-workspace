@@ -209,8 +209,10 @@ Only one operation runs per window; other windows remain independent.
   precise recovery directory containing remaining source data.
 - Recursive work is **not transactional** and is not a filesystem snapshot.
   Concurrent writers, including processes holding already-open descriptors, can
-  still change data between checks. Avoid moving actively written trees. Partial
-  results report completed, failed, skipped and not-started/cancelled items.
+  still change data between checks. Avoid moving actively written trees. A
+  finished operation shows nothing when every item succeeded; otherwise one alert
+  names each failed item with its reason, followed by any note you must act on
+  (a retained replaced item, a recovery or leftover staging folder).
   There is no crash-recovery journal and no claim of power-loss durability for
   directory-entry updates. Private staging/recovery directories left after a
   process crash must be inspected manually.

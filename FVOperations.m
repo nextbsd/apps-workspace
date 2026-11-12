@@ -122,6 +122,16 @@ FVCopyName (NSString *folder, NSString *name)
   return dest;
 }
 
+/* A failed item: the path it concerns and a reason without that path. */
+static NSDictionary *
+FVFailure (NSString *path, NSString *reason)
+{
+  NSString *prefix = [path stringByAppendingString:@": "];
+  if ([reason hasPrefix:prefix])
+    reason = [reason substringFromIndex:[prefix length]];
+  return [NSDictionary dictionaryWithObjectsAndKeys:path, @"path", reason, @"reason", nil];
+}
+
 static BOOL
 FVSameStat (struct stat a, struct stat b)
 {
@@ -579,12 +589,14 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
           return FVError (error, @"Source changed during move; restored without overwriting");
         }
       if (errno != EXDEV)
-        return FVError (error, [NSString stringWithFormat:@"Move failed: %s", strerror (errno)]);
+        return FVError (error, [NSString stringWithFormat:@"%s.", strerror (errno)]);
       /* EXDEV: copy into the destination filesystem, verify, then remove source. */
     }
   NSString *stage = FVUnique (parent, @".fileviewer-copy");
   if (mkdir ([stage fileSystemRepresentation], 0700))
-    return FVError (error, @"Cannot create private staging directory");
+    return FVError (error, [NSString stringWithFormat:@"Can’t write in “%@”: %s.",
+                                                      [parent lastPathComponent],
+                                                      strerror (errno)]);
   NSString *payload = [stage stringByAppendingPathComponent:@"payload"];
   NSMutableDictionary *manifest = [NSMutableDictionary dictionary];
   BOOL ok = FVCopy (source, payload, self, manifest, [NSMutableSet set], @"", error);
@@ -613,9 +625,10 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
       if (!ok)
         {
           if (FVRename (detached, source))
-            [notes addObject:[NSString stringWithFormat:@"Source recovery required: %@. The "
-                                                        @"original pathname became occupied.",
-                                                        detached]];
+            [notes addObject:[NSString stringWithFormat:@"The original of “%@” is kept at %@ "
+                                                        @"because its old name is now taken. "
+                                                        @"Move it back yourself.",
+                                                        [source lastPathComponent], detached]];
         }
       else if (!FVRemoveVerified (detached, manifest, @"", self))
         {
@@ -631,8 +644,9 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
     }
   NSError *cleanup = nil;
   if (![[NSFileManager defaultManager] removeItemAtPath:stage error:&cleanup])
-    [notes addObject:[NSString
-                         stringWithFormat:@"Staging cleanup required at %@: %@", stage, cleanup]];
+    [notes addObject:[NSString stringWithFormat:@"A temporary folder was left at %@ (%@). You "
+                                                @"can remove it.",
+                                                stage, [cleanup localizedDescription]]];
   return ok;
 }
 
@@ -764,7 +778,8 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
       BOOL ok = NO;
       if (!FVRepresentablePath (source))
         {
-          [failed addObject:@"Invalid filesystem pathname"];
+          [failed addObject:FVFailure ([source description], @"The name can’t be used on this "
+                                                                 @"file system.")];
           continue;
         }
       NSString *undoDestination = nil;
@@ -772,7 +787,7 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
       BOOL hadSource = lstat ([source fileSystemRepresentation], &sourceBefore) == 0;
       if (!hadSource && ![kind isEqual:@"mkdir"])
         {
-          [failed addObject:[NSString stringWithFormat:@"%@: %s", source, strerror (errno)]];
+          [failed addObject:FVFailure (source, [NSString stringWithUTF8String:strerror (errno)])];
           continue;
         }
       NSString *message =
@@ -813,15 +828,14 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
               if (lstat ([source fileSystemRepresentation], &a)
                   || lstat ([dest fileSystemRepresentation], &b))
                 {
-                  [failed
-                      addObject:[source stringByAppendingString:@": source or destination changed "
-                                                                @"before conflict resolution"]];
+                  [failed addObject:FVFailure (source, @"The item or the one it would replace "
+                                                       @"changed before it could be handled.")];
                   continue;
                 }
               if ([source isEqual:dest] || (a.st_dev == b.st_dev && a.st_ino == b.st_ino))
                 {
-                  [failed addObject:[source stringByAppendingString:
-                                                @": source and destination are the same file"]];
+                  [failed addObject:FVFailure (source, @"Source and destination are the same "
+                                                       @"file.")];
                   continue;
                 }
               NSMutableDictionary *request = [NSMutableDictionary
@@ -859,13 +873,17 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
                                      @"Workspace replaced item");
                   if (FVRename (dest, backup))
                     {
-                      [failed addObject:@"Cannot preserve conflicting destination"];
+                      [failed addObject:FVFailure (source, @"The existing item couldn’t be set "
+                                                           @"aside, so nothing was replaced.")];
                       continue;
                     }
-                  [notes
-                      addObject:[NSString stringWithFormat:@"Previous destination preserved at %@ "
-                                                           @"(directory contents are not merged)",
-                                                           backup]];
+                  [notes addObject:[NSString
+                                       stringWithFormat:@"The replaced “%@” is kept as “%@” in "
+                                                        @"%@. Folders aren’t merged; remove it "
+                                                        @"when you no longer need it.",
+                                                        [dest lastPathComponent],
+                                                        [backup lastPathComponent],
+                                                        [backup stringByDeletingLastPathComponent]]];
                 }
               else
                 {
@@ -902,14 +920,12 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
                      atIndex:0];
         }
       else
-        [failed addObject:[NSString
-                              stringWithFormat:@"%@: %@", source,
-                                               error ? [error localizedDescription]
-                                                     : [NSString
-                                                           stringWithUTF8String:strerror (errno)]]];
+        [failed addObject:FVFailure (source, error ? [error localizedDescription]
+                                                   : [NSString stringWithUTF8String:strerror (errno)])];
     }
   NSDictionary *result = [NSDictionary
-      dictionaryWithObjectsAndKeys:undo, @"undo", completed, @"completed", failed, @"failed",
+      dictionaryWithObjectsAndKeys:kind, @"kind", undo, @"undo", completed, @"completed",
+                                   failed, @"failed",
                                    skipped, @"skipped", notes, @"notes",
                                    [NSNumber numberWithBool:[self cancelled]], @"cancelled", nil];
   [target performSelectorOnMainThread:@selector (operationFinished:)

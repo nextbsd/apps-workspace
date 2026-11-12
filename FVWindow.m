@@ -2387,20 +2387,67 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   cutChangeCount = -1;
   if (closed)
     return;
-  NSArray *failed = [result objectForKey:@"failed"], *notes = [result objectForKey:@"notes"];
-  NSString *message =
-      [NSString stringWithFormat:@"%lu completed, %lu failed, %lu skipped%@.\n%@\n%@",
-                                 (unsigned long)[[result objectForKey:@"completed"] count],
-                                 (unsigned long)[failed count],
-                                 (unsigned long)[[result objectForKey:@"skipped"] count],
-                                 [[result objectForKey:@"cancelled"] boolValue]
-                                     ? @", cancelled; remaining items were not started"
-                                     : @"",
-                                 [failed componentsJoinedByString:@"\n"],
-                                 [notes componentsJoinedByString:@"\n"]];
+  /* Report before refreshing: a listing can't finish while the alert is modal. */
+  [self selectionChanged];
+  [[self window] displayIfNeeded];
+  [self reportFailures:[result objectForKey:@"failed"]
+                 notes:[result objectForKey:@"notes"]
+                  kind:[result objectForKey:@"kind"]];
+  if (closed)
+    return;
   [self rebuildPlaces];
   [self refresh:nil];
-  [self showText:message title:@"Operation results"];
+}
+
+/* Success is silent. Failures and notes the user must act on get one alert. */
+- (void)reportFailures:(NSArray *)failed notes:(NSArray *)notes kind:(NSString *)kind
+{
+  if (![failed count] && ![notes count])
+    return;
+  NSDictionary *verbs = [NSDictionary dictionaryWithObjectsAndKeys:
+      @"copied", @"copy", @"moved", @"move", @"duplicated", @"duplicate",
+      @"moved to the Trash", @"trash", @"deleted", @"delete", @"renamed", @"rename",
+      @"created", @"mkdir", @"put back", @"undo", nil];
+  NSDictionary *titles = [NSDictionary dictionaryWithObjectsAndKeys:
+      @"Copy", @"copy", @"Move", @"move", @"Duplicate", @"duplicate",
+      @"Move to Trash", @"trash", @"Delete Permanently", @"delete", @"Rename", @"rename",
+      @"New Folder", @"mkdir", @"Undo", @"undo", nil];
+  NSString *verb = [verbs objectForKey:kind] ? [verbs objectForKey:kind] : @"handled";
+  NSString *title = [titles objectForKey:kind] ? [titles objectForKey:kind] : @"Workspace";
+  NSString *heading;
+  NSMutableArray *lines = [NSMutableArray array];
+  if ([failed count] == 1)
+    {
+      NSDictionary *failure = [failed objectAtIndex:0];
+      heading = [NSString stringWithFormat:@"“%@” couldn’t be %@.",
+                                           [[failure objectForKey:@"path"] lastPathComponent],
+                                           verb];
+      [lines addObject:[failure objectForKey:@"reason"]];
+    }
+  else if ([failed count])
+    {
+      heading = [NSString stringWithFormat:@"%lu items couldn’t be %@.",
+                                           (unsigned long)[failed count], verb];
+      NSUInteger i, shown = [failed count] > 8 ? 7 : [failed count];
+      for (i = 0; i < shown; i++)
+        {
+          NSDictionary *failure = [failed objectAtIndex:i];
+          [lines addObject:[NSString stringWithFormat:@"“%@”: %@",
+                                                      [[failure objectForKey:@"path"]
+                                                          lastPathComponent],
+                                                      [failure objectForKey:@"reason"]]];
+        }
+      if (shown < [failed count])
+        [lines addObject:[NSString stringWithFormat:@"and %lu more",
+                                                    (unsigned long)([failed count] - shown)]];
+    }
+  else
+    heading = @"Finished, with something to check.";
+  NSString *message = [lines componentsJoinedByString:@"\n"];
+  if ([notes count])
+    message = [[NSArray arrayWithObjects:message, [notes componentsJoinedByString:@"\n\n"], nil]
+        componentsJoinedByString:[message length] ? @"\n\n" : @""];
+  FVRunAlert (title, heading, message, @"OK", nil);
 }
 
 - (void)resolveConflict:(NSMutableDictionary *)request
