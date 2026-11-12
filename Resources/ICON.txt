@@ -1,9 +1,11 @@
 Workspace application icon
 
-Resources/Workspace.png is NextBSD.png from nextbsd-theme
-(https://github.com/pkgdemon/nextbsd-theme), copied unchanged: the NextBSD
-logo, 256 x 256 RGBA PNG. nextbsd-theme is BSD 2-Clause, Copyright (c) 2026
-Joseph Maloney.
+Resources/Workspace.png is the cube from NextBSD.png in nextbsd-theme
+(https://github.com/pkgdemon/nextbsd-theme), without the logo's black
+square: the black reached from the edges was made transparent, the
+anti-aliased rim un-blended from black, and the cube centred on a square
+canvas and scaled to 256 x 256 RGBA. nextbsd-theme is BSD 2-Clause,
+Copyright (c) 2026 Joseph Maloney.
 
 Hard disk icon
 

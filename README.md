@@ -235,7 +235,7 @@ permanent deletion is between top-level items, not inside NSFileManager removal.
 | `FVIconView` | Native icon layout, selection, keyboard navigation and drag/drop |
 | `FVLauncher` | File-type associations and direct application activation/launch |
 | `main.m` | MRC application lifecycle |
-| `Resources/Workspace.png` | The NextBSD logo, from nextbsd-theme (see `Resources/ICON.txt`) |
+| `Resources/Workspace.png` | The NextBSD cube, from nextbsd-theme's logo without its black square (see `Resources/ICON.txt`) |
 
 Workers own autorelease pools. AppKit callbacks run on the main thread and use
 listing generations to discard stale results. Closing a window cancels work;
