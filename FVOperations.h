@@ -59,6 +59,13 @@ unsigned long long FVTreeSize (NSString *path, unsigned long long *entries, vola
 + (BOOL)validName:(NSString *)name;
 + (NSString *)homeTrash;
 + (BOOL)trashPath:(NSString *)source error:(NSError **)error;
+/* Changes an item's owner, group and rwx permission bits (other mode bits are
+   kept). Never follows a symbolic link; a link's permissions can't be set. */
++ (BOOL)setOwner:(uid_t)owner
+           group:(gid_t)group
+     permissions:(mode_t)permissions
+          ofPath:(NSString *)path
+           error:(NSError **)error;
 /* Called by the copier as data is written; reports progress at most ten times a second. */
 - (void)copiedBytes:(unsigned long long)count;
 /* Called by the copier as it reaches each file, folder or link. */
