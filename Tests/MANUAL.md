@@ -5,7 +5,7 @@ user files for delete, replacement, Trash or recovery tests.
 
 ## Window and navigation
 
-- [ ] Launch the actual `FileViewer.app/FileViewer` bundle with and without a path.
+- [ ] Launch the actual `Workspace.app/Workspace` bundle with and without a path.
 - [ ] Verify the generated folder/document/lens application icon in the GNUstep
       application tile, and that non-editable labels have no border.
 - [ ] Resize from minimum size to full screen; test light/dark themes and large
@@ -57,13 +57,13 @@ user files for delete, replacement, Trash or recovery tests.
 ## Drag and workspace integration
 
 - [ ] Drag list, browser and icon selections onto a directory and onto empty
-      space, both in the same window and another FileViewer window. Verify copy
+      space, both in the same window and another Workspace window. Verify copy
       feedback and actual destination; source remains unchanged.
 - [ ] Repeat with GWorkspace and another compatible GNUstep application in both
       directions; check multi-file `NSFilenamesPboardType` interoperability.
 - [ ] Open a disposable text file with its associated application and with a
       selected application bundle. Check failures for missing handlers/apps.
-- [ ] Do not set FileViewer as a workspace manager or alter file associations.
+- [ ] Do not set Workspace as a workspace manager or alter file associations.
 
 Automated tests cover a subset of these checks. Unchecked items are not claims of
 verification; refer to `VERIFICATION.md` for the run performed during development.

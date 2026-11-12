@@ -1,18 +1,18 @@
 /*
- * This file is part of FileViewer.
- * Copyright (C) 2026 FileViewer contributors
+ * This file is part of Workspace.
+ * Copyright (C) 2026 Workspace contributors
  *
- * FileViewer is free software: you can redistribute it and/or modify
+ * Workspace is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3,
  * as published by the Free Software Foundation.
  *
- * FileViewer is distributed in the hope that it will be useful,
+ * Workspace is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with FileViewer. If not, see <https://www.gnu.org/licenses/>.
+ * along with Workspace. If not, see <https://www.gnu.org/licenses/>.
  *
  * SPDX-License-Identifier: GPL-3.0-only
  */
@@ -36,7 +36,7 @@ FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArra
     [NSApp setWindowsMenu:menu];
 }
 
-/* FileViewer starts at login, so make sure the standard home folders exist. */
+/* Workspace starts at login, so make sure the standard home folders exist. */
 static void
 FVCreateStandardUserFolders (void)
 {
@@ -49,16 +49,44 @@ FVCreateStandardUserFolders (void)
         withIntermediateDirectories:YES attributes:nil error:NULL];
 }
 
+/* Workspace was FileViewer. The first time it starts, bring FileViewer's
+   settings over, except the saved main menu position: one saved under an X11
+   window manager is offset by its frame. */
+static void
+FVMigrateFileViewerDefaults (void)
+{
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  NSString *domainName = [[NSBundle mainBundle] bundleIdentifier];
+  NSMutableDictionary *old;
+  id frame;
+
+  if (domainName == nil || [[defaults persistentDomainForName:domainName] count] > 0)
+    return;
+  old = AUTORELEASE ([[defaults persistentDomainForName:@"org.gnustep.FileViewer"] mutableCopy]);
+  if ([old count] == 0)
+    return;
+  [old removeObjectForKey:@"NSMenuLocations"];
+  frame = [old objectForKey:@"NSWindow Frame FileViewer"];
+  if (frame != nil)
+    {
+      [old setObject:frame forKey:@"NSWindow Frame File Viewer"];
+      [old removeObjectForKey:@"NSWindow Frame FileViewer"];
+    }
+  [defaults setPersistentDomain:old forName:domainName];
+  [defaults synchronize];
+}
+
 @implementation FVApplication
 
 - (void)applicationWillFinishLaunching:(NSNotification *)note
 {
+  FVMigrateFileViewerDefaults ();
   FVCreateStandardUserFolders ();
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
   [defaults synchronize];
   NSMutableDictionary *domain = [NSMutableDictionary dictionaryWithDictionary:
       [defaults persistentDomainForName:NSGlobalDomain]];
-  [domain setObject:@"FileViewer" forKey:@"GSWorkspaceApplication"];
+  [domain setObject:@"Workspace" forKey:@"GSWorkspaceApplication"];
   [defaults setPersistentDomain:domain forName:NSGlobalDomain];
   [defaults synchronize];
 }
@@ -69,7 +97,7 @@ FVCreateStandardUserFolders (void)
   [defaults synchronize];
   NSMutableDictionary *domain = [NSMutableDictionary dictionaryWithDictionary:
       [defaults persistentDomainForName:NSGlobalDomain]];
-  if ([[domain objectForKey:@"GSWorkspaceApplication"] isEqual:@"FileViewer"])
+  if ([[domain objectForKey:@"GSWorkspaceApplication"] isEqual:@"Workspace"])
     {
       [domain removeObjectForKey:@"GSWorkspaceApplication"];
       [defaults setPersistentDomain:domain forName:NSGlobalDomain];
@@ -80,11 +108,11 @@ FVCreateStandardUserFolders (void)
 - (void)applicationDidFinishLaunching:(NSNotification *)note
 {
   windows = [[NSMutableArray alloc] init];
-  NSImage *icon = [NSImage imageNamed:@"FileViewer.png"];
+  NSImage *icon = [NSImage imageNamed:@"Workspace.png"];
   if (icon)
     [NSApp setApplicationIconImage:icon];
-  NSMenu *menu = AUTORELEASE ([[NSMenu alloc] initWithTitle:@"FileViewer"]);
-  [menu addItemWithTitle:@"About FileViewer"
+  NSMenu *menu = AUTORELEASE ([[NSMenu alloc] initWithTitle:@"Workspace"]);
+  [menu addItemWithTitle:@"About Workspace"
                   action:@selector (orderFrontStandardAboutPanel:)
            keyEquivalent:@""];
   id<NSMenuItem> preferences = [menu addItemWithTitle:@"Preferences…"
@@ -122,7 +150,7 @@ FVCreateStandardUserFolders (void)
           [NSArray arrayWithObjects:@"[", @"]", @"u", @"", @"g", nil]);
   FVMenu (menu, @"Window", [NSArray arrayWithObject:@"Minimize"],
           [NSArray arrayWithObject:@"performMiniaturize:"], [NSArray arrayWithObject:@"m"]);
-  FVMenu (menu, @"Help", [NSArray arrayWithObject:@"FileViewer Help"],
+  FVMenu (menu, @"Help", [NSArray arrayWithObject:@"Workspace Help"],
           [NSArray arrayWithObject:@"help:"], [NSArray arrayWithObject:@"?"]);
   [menu addItemWithTitle:@"Quit" action:@selector (terminate:) keyEquivalent:@"q"];
   [NSApp setMainMenu:menu];
@@ -195,7 +223,7 @@ FVCreateStandardUserFolders (void)
 - (void)help:(id)sender
 {
   NSRunAlertPanel (
-      @"FileViewer",
+      @"Workspace",
       @"Use the path menu to visit ancestors. Filter matches names in the current directory; View "
       @"→ Recursive Filename Search searches beneath it. Columns select folders on a single click "
       @"and open files on double-click. Drag copies files; use Cut/Paste or Move To for explicit "

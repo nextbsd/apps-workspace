@@ -1,18 +1,18 @@
 /*
- * This file is part of FileViewer.
- * Copyright (C) 2026 FileViewer contributors
+ * This file is part of Workspace.
+ * Copyright (C) 2026 Workspace contributors
  *
- * FileViewer is free software: you can redistribute it and/or modify
+ * Workspace is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3,
  * as published by the Free Software Foundation.
  *
- * FileViewer is distributed in the hope that it will be useful,
+ * Workspace is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with FileViewer. If not, see <https://www.gnu.org/licenses/>.
+ * along with Workspace. If not, see <https://www.gnu.org/licenses/>.
  *
  * SPDX-License-Identifier: GPL-3.0-only
  */
@@ -387,7 +387,7 @@ main (void)
                           | NSMiniaturizableWindowMask | NSResizableWindowMask
                   backing:NSBackingStoreBuffered
                     defer:NO];
-  [savedWindow saveFrameUsingName:@"FileViewer"];
+  [savedWindow saveFrameUsingName:@"File Viewer"];
   RELEASE (savedWindow);
   FVWindow *window = [[FVWindow alloc] initWithPath:root];
   CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@"Loading…"]);

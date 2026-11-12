@@ -1,10 +1,13 @@
-# FileViewer
+# Workspace
 
-FileViewer is a native GNUstep file manager, built with Foundation and AppKit.
-At launch it sets the global GNUstep workspace application default
-(`GSWorkspaceApplication = FileViewer`), so `gopen .` opens the directory in
-FileViewer. On normal quit it removes that default if it still points to
-FileViewer. Explicit
+Workspace is NextBSD's workspace app, a native GNUstep file manager built with
+Foundation and AppKit (formerly FileViewer). Its windows are titled File
+Viewer, as on NeXTSTEP. Settings saved by FileViewer (`org.gnustep.FileViewer`)
+are copied to Workspace's own domain (`org.nextbsd.Workspace`) the first time it
+starts, except the saved main menu position. At launch it sets the global GNUstep workspace application default
+(`GSWorkspaceApplication = Workspace`), so `gopen .` opens the directory in
+Workspace. On normal quit it removes that default if it still points to
+Workspace. Explicit
 application choices and file opening continue through NSWorkspace associations.
 
 ## Screenshot
@@ -31,13 +34,13 @@ From this directory:
 
 ```sh
 make -j2
-./FileViewer.app/FileViewer
-./FileViewer.app/FileViewer /absolute/path/to/folder
+./Workspace.app/Workspace
+./Workspace.app/Workspace /absolute/path/to/folder
 ```
 
 If GNUstep is not configured in your shell, source its installed `GNUstep.sh`
 first. The GNUmakefile locates Make using `gnustep-config`; no installation or
-`sudo` is necessary. The generated application bundle is `FileViewer.app`.
+`sudo` is necessary. The generated application bundle is `Workspace.app`.
 
 Inspected development environment:
 
@@ -53,7 +56,7 @@ Inspected development environment:
   The modal helper isolates an opaque-session type-encoding mismatch in this
   libobjc2/GUI combination without changing GNUstep libraries.
 
-## Using FileViewer
+## Using Workspace
 
 - Each window has its own directory, selection, navigation history, filter and
   operation. Use File → New Window or Open Folder in New Window.
@@ -82,11 +85,11 @@ Inspected development environment:
   `_netdev`. Entries appear only in Network, respect the `/run` exclusion preference, and
   update automatically as mounts appear or disappear. Click an entry to browse
   it. This lists existing mounts; it does not discover or mount remote servers.
-- Recents in Common Locations combines successful file opens in FileViewer with
+- Recents in Common Locations combines successful file opens in Workspace with
   other applications' shared `recently-used.xbel` history under `XDG_DATA_HOME`
   (normally `~/.local/share`). Files appear newest first, with Last Accessed and
   Full Path columns; duplicate paths, missing files and folders are omitted.
-  FileViewer's history persists across restarts. Selecting files and generating
+  Workspace's history persists across restarts. Selecting files and generating
   thumbnails do not add history. Apps that do not publish shared history cannot
   be included. Recents supports list/icons, filtering, opening and file actions;
   it is a collection, so it cannot receive pasted files or new folders.
@@ -119,15 +122,15 @@ Inspected development environment:
   associations; when several applications match, a chooser lists the preferred
   application first. With no association, choose an application manually.
   The chooser's “Always open this file type with the selected application”
-  checkbox saves a default for that extension in FileViewer and skips the
+  checkbox saves a default for that extension in Workspace and skips the
   chooser on future opens. To change it, select a file and use File → Open With…,
   choose an application (or use Other…), and check the box. File → Reset Open
   With Association clears the saved choice. An unchecked box opens once without
   replacing an existing default. Files without extensions cannot save a default.
-  FileViewer contacts or launches the chosen application directly, without
+  Workspace contacts or launches the chosen application directly, without
   delegating file opening to GWorkspace. Open With also uses this direct path.
   Communication with the selected application runs in the background so a slow
-  viewer does not block FileViewer. Opening progress and failures appear in the
+  viewer does not block Workspace. Opening progress and failures appear in the
   status bar.
 - Columns use the current directory as their root. Single-clicking a folder
   expands a column without adding history; double-clicking it navigates the
@@ -174,7 +177,7 @@ Only one operation runs per window; other windows remain independent.
   names. Duplicate chooses a new sibling name.
 - Conflicts offer Keep Both, Skip, Replace, Cancel and Apply to Remaining.
   Replace moves the existing destination aside to a uniquely named
-  `FileViewer replaced item-…` sibling and reports its path. It does **not** merge
+  `Workspace replaced item-…` sibling and reports its path. It does **not** merge
   directories or silently erase the previous destination. Remove the retained
   backup yourself after checking the result.
 - Publication and same-filesystem moves use atomic **no-replace** rename. A race
@@ -232,7 +235,7 @@ permanent deletion is between top-level items, not inside NSFileManager removal.
 | `FVIconView` | Native icon layout, selection, keyboard navigation and drag/drop |
 | `FVLauncher` | File-type associations and direct application activation/launch |
 | `main.m` | MRC application lifecycle |
-| `Resources/FileViewer.png` | Original generated transparent application icon |
+| `Resources/Workspace.png` | The NextBSD logo, from nextbsd-theme (see `Resources/ICON.txt`) |
 
 Workers own autorelease pools. AppKit callbacks run on the main thread and use
 listing generations to discard stale results. Closing a window cancels work;

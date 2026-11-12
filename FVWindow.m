@@ -1,18 +1,18 @@
 /*
- * This file is part of FileViewer.
- * Copyright (C) 2026 FileViewer contributors
+ * This file is part of Workspace.
+ * Copyright (C) 2026 Workspace contributors
  *
- * FileViewer is free software: you can redistribute it and/or modify
+ * Workspace is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3,
  * as published by the Free Software Foundation.
  *
- * FileViewer is distributed in the hope that it will be useful,
+ * Workspace is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with FileViewer. If not, see <https://www.gnu.org/licenses/>.
+ * along with Workspace. If not, see <https://www.gnu.org/licenses/>.
  *
  * SPDX-License-Identifier: GPL-3.0-only
  */
@@ -466,7 +466,7 @@ FVCompare (id lhs, id rhs, void *context)
       [apply setEnabled:[[path pathExtension] length] > 0];
       [content addSubview:apply];
       NSString *help = [[path pathExtension] length]
-          ? [NSString stringWithFormat:@"Applies to .%@ files in FileViewer.\nChange later with File → Open With…",
+          ? [NSString stringWithFormat:@"Applies to .%@ files in Workspace.\nChange later with File → Open With…",
                                        [[path pathExtension] lowercaseString]]
           : @"Files without an extension can only be opened once with this choice.";
       NSTextField *hint = FVLabel (NSMakeRect (18, 76, 584, 36), help);
@@ -974,7 +974,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
     {
       [window setDelegate:self];
       [window setMinSize:NSMakeSize (760, 400)];
-      [window setFrameAutosaveName:@"FileViewer"];
+      [window setFrameAutosaveName:@"File Viewer"];
       cutChangeCount = -1;
       infoPanels = [[NSMutableArray alloc] init];
       items = [[NSMutableArray alloc] init];
@@ -1311,7 +1311,8 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   searching = NO;
   [browserRows removeAllObjects];
   [[NSUserDefaults standardUserDefaults] setObject:path forKey:@"LastPath"];
-  [[self window] setTitle:[@"FileViewer — " stringByAppendingString:recents ? @"Recents" : path]];
+  /* Every viewer is titled File Viewer, as on NeXTSTEP; the path bar shows where it is. */
+  [[self window] setTitle:@"File Viewer"];
   [breadcrumbs removeAllItems];
   [[[table tableColumnWithIdentifier:@"date"] headerCell]
       setStringValue:recents ? @"Last Accessed" : @"Modified"];
@@ -2186,10 +2187,10 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 {
   NSPasteboard *pb = [NSPasteboard generalPasteboard];
   [pb declareTypes:[NSArray
-                       arrayWithObjects:NSFilenamesPboardType, @"org.gnustep.FileViewer.cut", nil]
+                       arrayWithObjects:NSFilenamesPboardType, @"org.nextbsd.Workspace.cut", nil]
              owner:nil];
   [pb setPropertyList:[self selectedPaths] forType:NSFilenamesPboardType];
-  [pb setString:@"move" forType:@"org.gnustep.FileViewer.cut"];
+  [pb setString:@"move" forType:@"org.nextbsd.Workspace.cut"];
   [status setStringValue:@"Cut: files remain in place until a successful Paste move"];
 }
 
@@ -2202,8 +2203,8 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   if (operation)
     return;
   cutChangeCount =
-      [[pb types] containsObject:@"org.gnustep.FileViewer.cut"] ? [pb changeCount] : -1;
-  [self runOperation:[[pb types] containsObject:@"org.gnustep.FileViewer.cut"] ? @"move" : @"copy"
+      [[pb types] containsObject:@"org.nextbsd.Workspace.cut"] ? [pb changeCount] : -1;
+  [self runOperation:[[pb types] containsObject:@"org.nextbsd.Workspace.cut"] ? @"move" : @"copy"
                paths:paths
          destination:path];
 }
@@ -2310,13 +2311,13 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       [remaining removeObjectsInArray:[result objectForKey:@"completed"]];
       [pb declareTypes:[remaining count]
                            ? [NSArray arrayWithObjects:NSFilenamesPboardType,
-                                                       @"org.gnustep.FileViewer.cut", nil]
+                                                       @"org.nextbsd.Workspace.cut", nil]
                            : [NSArray array]
                  owner:nil];
       if ([remaining count])
         {
           [pb setPropertyList:remaining forType:NSFilenamesPboardType];
-          [pb setString:@"move" forType:@"org.gnustep.FileViewer.cut"];
+          [pb setString:@"move" forType:@"org.nextbsd.Workspace.cut"];
         }
     }
   cutChangeCount = -1;
@@ -2350,7 +2351,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
             message:[NSString
                         stringWithFormat:
                             @"%@\nReplace preserves the old item beside the destination as "
-                            @"‘FileViewer replaced item…’. Directories are replaced, never merged.",
+                            @"‘Workspace replaced item…’. Directories are replaced, never merged.",
                             [request objectForKey:@"destination"]]
               value:nil
             buttons:[NSArray arrayWithObjects:@"Keep Both", @"Skip", @"Replace", @"Cancel", nil]]));

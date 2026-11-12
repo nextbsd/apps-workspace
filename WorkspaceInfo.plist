@@ -1,0 +1,18 @@
+{
+  ApplicationName = Workspace;
+  ApplicationDescription = "The NextBSD workspace and file viewer";
+  ApplicationRelease = "1.0";
+  Authors = ("Gregory John Casamento <greg.casamento@gmail.com>", "Joseph Maloney");
+  URL = "https://github.com/pkgdemon/apps-fileviewer";
+  Copyright = "Copyright (C) 2026 Gregory John Casamento and Workspace contributors";
+  CopyrightDescription = "GNU General Public License version 3 or later; no warranty.";
+  NSHumanReadableCopyright = "Copyright (C) 2026 Gregory John Casamento and Workspace contributors";
+  NSPrincipalClass = NSApplication;
+  NSIcon = "Workspace.png";
+  CFBundleIconFile = "Workspace.png";
+  NSExecutable = Workspace;
+  CFBundleIdentifier = "org.nextbsd.Workspace";
+  CFBundleName = Workspace;
+  CFBundleShortVersionString = "1.0";
+  CFBundleVersion = "1.0";
+}

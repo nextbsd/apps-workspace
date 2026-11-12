@@ -2,7 +2,7 @@
 
 ## Build
 
-`make -j2` produced `FileViewer.app` with Clang 19.1.7 and GNUstep Make 2.9.3.
+`make -j2` produced `Workspace.app` with Clang 19.1.7 and GNUstep Make 2.9.3.
 Application sources compile with `-Wall -Wextra -Wno-unused-parameter` without
 compiler warnings. Source is manual retain/release, with no ARC/blocks dependency.
 The app was launched directly under an isolated Xvfb X11 display.
@@ -67,7 +67,7 @@ modal-session type-encoding warnings in the final passing run.
 
 ## Actual bundle / visual / pointer checks
 
-The actual `FileViewer.app/FileViewer` was launched repeatedly on isolated Xvfb
+The actual `Workspace.app/Workspace` was launched repeatedly on isolated Xvfb
 screens. Screenshots were inspected for list, column, icon and Go to Folder views,
 and the scrollable operation report. The new transparent PNG appeared correctly
 in the application tile and in the file list's application-bundle icon.
