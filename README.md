@@ -182,7 +182,9 @@ Only one operation runs per window; other windows remain independent.
   removed from the cut list only if the clipboard has not since changed; failed
   entries remain available. Move To explicitly chooses another destination.
 - Rename uses a native dialog. New Folder rejects empty, `.`/`..`, slash and NUL
-  names. Duplicate chooses a new sibling name.
+  names. Duplicate chooses a new sibling name the way Finder does: "notes copy.txt",
+  then "notes copy 2.txt". Pasting or dropping a copy into the item's own folder
+  does the same; pasting a cut item back into its own folder does nothing.
 - Conflicts offer Keep Both, Skip, Replace, Cancel and Apply to Remaining.
   Replace moves the existing destination aside to a uniquely named
   `Workspace replaced item-…` sibling and reports its path. It does **not** merge

@@ -82,6 +82,46 @@ FVUnique (NSString *folder, NSString *prefix)
                                                                             globallyUniqueString]]];
 }
 
+/* The same entry reached through its own folder, possibly by a symlinked path.
+   Hard-link aliases elsewhere are not the same entry. */
+static BOOL
+FVSameEntry (NSString *a, NSString *b)
+{
+  struct stat x, y;
+  if (lstat ([a fileSystemRepresentation], &x) || lstat ([b fileSystemRepresentation], &y))
+    return NO;
+  return x.st_dev == y.st_dev && x.st_ino == y.st_ino
+         && [[a lastPathComponent] isEqual:[b lastPathComponent]]
+         && [[[a stringByDeletingLastPathComponent] stringByResolvingSymlinksInPath]
+             isEqual:[[b stringByDeletingLastPathComponent] stringByResolvingSymlinksInPath]];
+}
+
+/* Finder's copy names: "notes copy.txt", then "notes copy 2.txt". */
+static NSString *
+FVCopyName (NSString *folder, NSString *name)
+{
+  NSString *extension = [name pathExtension];
+  NSString *base = [name stringByDeletingPathExtension];
+  if (![extension length] || ![base length] || [extension rangeOfString:@" "].location != NSNotFound)
+    {
+      extension = @"";
+      base = name;
+    }
+  NSUInteger n = 1;
+  NSString *dest;
+  do
+    {
+      NSString *copy = n == 1 ? [base stringByAppendingString:@" copy"]
+                              : [base stringByAppendingFormat:@" copy %lu", (unsigned long)n];
+      if ([extension length])
+        copy = [copy stringByAppendingPathExtension:extension];
+      dest = [folder stringByAppendingPathComponent:copy];
+      n++;
+    }
+  while (FVExists (dest));
+  return dest;
+}
+
 static BOOL
 FVSameStat (struct stat a, struct stat b)
 {
@@ -757,18 +797,15 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
                   : [destination stringByAppendingPathComponent:[source lastPathComponent]];
           NSString *backup = nil;
           if ([kind isEqual:@"duplicate"])
+            dest = FVCopyName (destination, [source lastPathComponent]);
+          else if (FVSameEntry (source, dest)
+                   && ([kind isEqual:@"copy"] || [kind isEqual:@"move"]))
             {
-              NSUInteger n = 2;
-              do
-                {
-                  dest = [destination
-                      stringByAppendingPathComponent:[NSString
-                                                         stringWithFormat:@"%@ copy %lu",
-                                                                          [source
-                                                                              lastPathComponent],
-                                                                          (unsigned long)n++]];
-                }
-              while (FVExists (dest));
+              /* Pasted or dropped into its own folder: a copy behaves like
+                 Duplicate and a move back into place quietly does nothing. */
+              if ([kind isEqual:@"move"])
+                continue;
+              dest = FVCopyName (destination, [source lastPathComponent]);
             }
           else if (FVExists (dest))
             {
