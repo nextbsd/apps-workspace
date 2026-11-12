@@ -121,7 +121,7 @@ FVMigrateFileViewerDefaults (void)
   FVMenu (menu, @"File",
           [NSArray arrayWithObjects:@"New Window", @"Open", @"Open With…", @"Reset Open With Association",
                                     @"Open Folder in New Window", @"Show Package Contents",
-                                    @"New Folder", @"Rename…", @"Delete Permanently…", @"Get Info", @"Close", nil],
+                                    @"New Folder", @"Rename", @"Delete Permanently…", @"Get Info", @"Close", nil],
           [NSArray arrayWithObjects:@"newWindow:", @"open:", @"openWith:", @"resetOpenWith:", @"openNewWindow:",
                                     @"packageContents:", @"newFolder:", @"rename:", @"deletePermanently:", @"info:",
                                     @"performClose:", nil],

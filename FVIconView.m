@@ -41,6 +41,7 @@
 
 - (void)dealloc
 {
+  [NSObject cancelPreviousPerformRequestsWithTarget:self];
   RELEASE (selection);
   RELEASE (rowOffsets);
   RELEASE (mouseDownPath);
@@ -224,8 +225,16 @@
 - (void)mouseDown:(NSEvent *)event
 {
   [[self window] makeFirstResponder:self];
-  NSInteger i = [self indexAtPoint:[self convertPoint:[event locationInWindow] fromView:nil]];
+  [NSObject cancelPreviousPerformRequestsWithTarget:self];
+  NSPoint local = [self convertPoint:[event locationInWindow] fromView:nil];
+  NSInteger i = [self indexAtPoint:local];
   NSPoint point = [event locationInWindow];
+  /* A slow second click on the name of the only selected item renames it. */
+  slowClick = i >= 0 && [event clickCount] == 1
+              && !([event modifierFlags]
+                   & (NSShiftKeyMask | NSControlKeyMask | NSCommandKeyMask | NSAlternateKeyMask))
+              && [selection count] == 1 && [selection containsIndex:i]
+              && NSPointInRect (local, [self labelRectForIndex:i]);
   if ([event clickCount] == 2 && mouseDownPath
       && fabs (point.x - mouseDownPoint.x) < 5 && fabs (point.y - mouseDownPoint.y) < 5)
     {
@@ -277,6 +286,7 @@
 
 - (void)keyDown:(NSEvent *)event
 {
+  [NSObject cancelPreviousPerformRequestsWithTarget:self];
   NSString *text = [event charactersIgnoringModifiers];
   if (![text length])
     return;
@@ -292,7 +302,10 @@
     next -= [self columns];
   else if (c == '\r')
     {
-      [owner open:self];
+      if ([selection count] == 1)
+        [owner rename:self];
+      else
+        [owner open:self];
       return;
     }
   else
@@ -364,7 +377,21 @@
 
 - (void)mouseUp:(NSEvent *)event
 {
+  NSPoint point = [event locationInWindow];
+  if (slowClick && dragPending && fabs (point.x - mouseDownPoint.x) < 4
+      && fabs (point.y - mouseDownPoint.y) < 4)
+    [self performSelector:@selector (renameAfterSlowClick:)
+               withObject:[NSNumber numberWithUnsignedInteger:[selection firstIndex]]
+               afterDelay:.7];
+  slowClick = NO;
   dragPending = NO;
+}
+
+- (void)renameAfterSlowClick:(NSNumber *)index
+{
+  if ([selection count] == 1 && [selection containsIndex:[index unsignedIntegerValue]]
+      && [[self window] firstResponder] == self)
+    [owner rename:self];
 }
 
 - (NSDragOperation)draggingSourceOperationMaskForLocal:(BOOL)local

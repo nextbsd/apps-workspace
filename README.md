@@ -181,7 +181,9 @@ Only one operation runs per window; other windows remain independent.
 - Cut does not remove anything initially. Paste moves. Successful entries are
   removed from the cut list only if the clipboard has not since changed; failed
   entries remain available. Move To explicitly chooses another destination.
-- Rename uses a native dialog. New Folder creates "New Folder" (or "New Folder 2"…)
+- Rename edits the name in place in the list, column and icon views; Return on a
+  single selected item and a slow second click on its name start it too. The name
+  is selected without its extension; Return renames and Escape cancels. New Folder creates "New Folder" (or "New Folder 2"…)
   at once in the folder the view shows (in columns, the selected folder), selects it
   and edits its name in place: Return keeps the typed name, Escape keeps the default.
   Empty, `.`/`..`, slash and NUL names and names already taken are refused in

@@ -94,6 +94,7 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
 - (NSArray *)items;
 - (void)open:(id)sender;
 - (void)openPath:(NSString *)value;
+- (void)rename:(id)sender;
 - (void)selectionChanged;
 - (NSImage *)iconForPath:(NSString *)value;
 - (BOOL)allowsFileDrop;

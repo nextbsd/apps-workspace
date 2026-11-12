@@ -24,7 +24,6 @@
 #include <objc/runtime.h>
 
 static unsigned checks = 0;
-static FVWindow *dialogOwner;
 #define CHECK(x)                                                                                   \
   do                                                                                               \
     {                                                                                              \
@@ -78,51 +77,6 @@ CheckLayout (FVWindow *controller)
   CHECK ([activity alignment] == NSRightTextAlignment);
   CHECK (NSMaxX ([[controller valueForKey:@"status"] frame]) < NSMinX ([activity frame]));
   CHECK (fabs (NSMaxX ([activity frame]) - (NSWidth ([content bounds]) - 10)) < 1);
-}
-
-@interface FVDialogAnswer : NSObject
-
-@end
-
-@implementation FVDialogAnswer
-
-- (void)answer:(NSTimer *)timer
-{
-  if (dialogOwner)
-    CHECK ([[[dialogOwner valueForKey:@"activityStatus"] stringValue]
-        isEqual:@"Waiting for input…"]);
-  NSArray *views = [[[NSApp modalWindow] contentView] subviews];
-
-  NSUInteger i;
-  for (i = 0; i < [views count]; i++)
-    {
-      id view = [views objectAtIndex:i];
-      if ([view isKindOfClass:[NSTextField class]] && [view isEditable])
-        [view setStringValue:[timer userInfo]];
-    }
-  for (i = 0; i < [views count]; i++)
-    {
-      id view = [views objectAtIndex:i];
-      if ([view isKindOfClass:[NSButton class]] && [[view title] isEqual:@"OK"])
-        {
-          [[view target] performSelector:[view action] withObject:view];
-          return;
-        }
-    }
-}
-
-@end
-
-static void
-AnswerNextDialog (NSString *name)
-{
-  FVDialogAnswer *answer = AUTORELEASE ([[FVDialogAnswer alloc] init]);
-  NSTimer *timer = [NSTimer timerWithTimeInterval:.1
-                                           target:answer
-                                         selector:@selector (answer:)
-                                         userInfo:name
-                                          repeats:NO];
-  [[NSRunLoop currentRunLoop] addTimer:timer forMode:NSModalPanelRunLoopMode];
 }
 
 static void
@@ -511,7 +465,6 @@ main (void)
   Loaded (other);
   CHECK ([[other items] count] == 1);
   CHECK ([[window items] count] == 5);
-  dialogOwner = window;
   Action (window, @"newFolder:");
   CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@"Creating folder…"]);
   OperationDone (window);
@@ -533,8 +486,10 @@ main (void)
       break;
   CHECK (row < [[window items] count]);
   [table selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];
-  AnswerNextDialog (@"renamed.txt");
   Action (window, @"rename:");
+  CHECK ([editor superview] && [[editor stringValue] isEqual:@"one.txt"]);
+  [editor setStringValue:@"renamed.txt"];
+  CHECK ([window commitNameEdit]);
   OperationDone (window);
   CHECK ([fm fileExistsAtPath:[root stringByAppendingPathComponent:@"renamed.txt"]]);
   CHECK (![fm fileExistsAtPath:[root stringByAppendingPathComponent:@"one.txt"]]);
