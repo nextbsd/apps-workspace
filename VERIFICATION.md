@@ -83,9 +83,30 @@ The generated icon is 1254×1254 RGBA; ImageMagick inspection reported a real al
 channel and `opaque=False`. The original generated PNG is bundled without
 creative modification. Its prompt/provenance is in `Resources/ICON.txt`.
 
+## NextBSD filesystem checks — 2026-11-11
+
+Folder copy and the verified delete that finishes a cross-filesystem move no
+longer go through `/proc/self/fd`, which NextBSD does not mount. On a NextBSD
+27.0.0 arm64 VM (UFS with soft updates, plus a tmpfs mount), built with Clang and
+the system GNUstep:
+
+- `Tests/FilesystemTests.m` built without `-lmount` and run with
+  `GNUSTEP_STRING_ENCODING=NSUTF8StringEncoding`: **119 assertions passed**. The
+  previous `/proc/self/fd` walker fails the first folder copy on NextBSD.
+- Real `copy`, `move` and `delete` jobs on nested trees (8 MiB file, empty and
+  Unicode folders, a symlink, a 0750 folder): UFS to UFS, UFS to tmpfs, and real
+  `EXDEV` moves in both directions. `diff -r` matched; sources were removed after
+  verified moves and no staging or recovery directories were left behind.
+- The same through the application on a headless WindowServer: Duplicate of a
+  nested folder, Move To… from UFS to tmpfs and back, and Delete Permanently.
+
+UFS rewrites a moved folder's `..` entry, which updates its modification time as
+well as its change time, so the post-detach check ignores both on the top folder
+only; every entry inside is still checked.
+
 ## Not established by these checks
 
-Real mounted cross-device moves, hot-unplug, disk-full faults, hostile concurrent
+Real mounted cross-device moves on Linux, hot-unplug, disk-full faults, hostile concurrent
 mutation, external-application drag sessions, all application association/opening
 paths, all desktop themes/scales, persistent preference restoration across a real
 desktop restart, and other Unix platforms remain manual verification work.
