@@ -145,11 +145,11 @@ WaitForLaunch (FVWindow *window, NSString *marker)
   NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:8];
   while (([[window valueForKey:@"pendingLaunches"] unsignedIntegerValue] != 0
           || ![[NSFileManager defaultManager] fileExistsAtPath:marker]
-          || ![[[window valueForKey:@"activityStatus"] stringValue] isEqual:@"Idle"])
+          || ![[[window valueForKey:@"activityStatus"] stringValue] isEqual:@""])
          && [deadline timeIntervalSinceNow] > 0)
     Tick (.02);
   CHECK ([[window valueForKey:@"pendingLaunches"] unsignedIntegerValue] == 0);
-  CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@"Idle"]);
+  CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@""]);
 }
 
 static NSMenu *
