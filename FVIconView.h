@@ -39,5 +39,6 @@
 - (void)reload;
 - (void)resizeIcons:(CGFloat)delta;
 - (void)updateFileTooltips;
+- (NSRect)labelRectForIndex:(NSUInteger)i;
 
 @end

@@ -512,13 +512,17 @@ main (void)
   CHECK ([[other items] count] == 1);
   CHECK ([[window items] count] == 5);
   dialogOwner = window;
-  AnswerNextDialog (@"Created through dialog");
   Action (window, @"newFolder:");
   CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@"Creating folder…"]);
   OperationDone (window);
   CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@""]);
-  NSString *created = [root stringByAppendingPathComponent:@"Created through dialog"];
+  NSString *created = [root stringByAppendingPathComponent:@"New Folder"];
   CHECK ([fm fileExistsAtPath:created]);
+  /* The new folder's name is edited in place; Escape keeps the default name. */
+  NSTextField *editor = [window valueForKey:@"nameEditor"];
+  CHECK ([editor superview] && [[editor stringValue] isEqual:@"New Folder"]);
+  [window endEditingName:YES];
+  CHECK (![editor superview]);
   Action (window, @"undo:");
   CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@"Undoing…"]);
   OperationDone (window);

@@ -27,7 +27,7 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
                       NSString *defaultButton, NSString *alternateButton);
 
 @class FVOperations, FVIconView;
-@interface FVWindow : NSWindowController
+@interface FVWindow : NSWindowController <NSTextFieldDelegate>
 {
   NSString *path;
   NSMutableArray *infoPanels;
@@ -80,6 +80,10 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
   FVOperations *operation;
   NSInteger cutChangeCount;
   NSArray *undoRecords;
+  NSTextField *nameEditor;
+  NSString *editingPath;
+  NSString *revealPath;
+  BOOL editRevealed;
 }
 
 - (id)initWithPath:(NSString *)value;
@@ -97,5 +101,8 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
 - (void)operationFinished:(NSDictionary *)result;
 - (void)operationProgress:(NSString *)message;
 - (void)resolveConflict:(NSMutableDictionary *)request;
+- (void)beginEditingName:(NSString *)value;
+- (BOOL)commitNameEdit;
+- (void)endEditingName:(BOOL)refocus;
 
 @end

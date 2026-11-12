@@ -73,6 +73,13 @@
   return NSMakeRect ((i % cols) * tileSize, top, tileSize, bottom - top);
 }
 
+/* Where the inline name editor goes: one line over the top of the label. */
+- (NSRect)labelRectForIndex:(NSUInteger)i
+{
+  NSRect tile = [self rectForIndex:i];
+  return NSMakeRect (tile.origin.x + 4, tile.origin.y + tileSize * .48 + 12, tileSize - 8, 24);
+}
+
 - (NSDictionary *)labelAttributesForSelection:(BOOL)selected
 {
   NSMutableParagraphStyle *style = AUTORELEASE ([[NSMutableParagraphStyle alloc] init]);
