@@ -19,6 +19,11 @@
 
 #import <Foundation/Foundation.h>
 
+/* Bytes in the regular files of a tree, never following links. Counts the
+   entries in *entries when given. Stops early, returning what it has, once
+   *stop becomes YES. */
+unsigned long long FVTreeSize (NSString *path, unsigned long long *entries, volatile BOOL *stop);
+
 /* All mutations use this service. Linux no-replace rename is isolated here. */
 @interface FVOperations : NSObject
 {
@@ -29,6 +34,15 @@
   NSString *destination;
   NSString *policy;
   NSMutableArray *notes;
+  /* Progress, written by the worker thread only. */
+  unsigned long long bytesDone;
+  unsigned long long bytesTotal;
+  unsigned long long entriesDone;
+  unsigned long long entriesTotal;
+  NSUInteger itemIndex;
+  NSString *currentName;
+  NSTimeInterval lastReport;
+  BOOL preparing;
 }
 
 - (id)initWithKind:(NSString *)action
@@ -45,5 +59,9 @@
 + (BOOL)validName:(NSString *)name;
 + (NSString *)homeTrash;
 + (BOOL)trashPath:(NSString *)source error:(NSError **)error;
+/* Called by the copier as data is written; reports progress at most ten times a second. */
+- (void)copiedBytes:(unsigned long long)count;
+/* Called by the copier as it reaches each file, folder or link. */
+- (void)copyingEntry:(NSString *)path;
 
 @end

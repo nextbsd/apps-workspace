@@ -23,6 +23,7 @@
 #import "FVIconView.h"
 #import "FVLauncher.h"
 #import "FVThumbnails.h"
+#import "FVPanels.h"
 #include <sys/statvfs.h>
 #include <sys/stat.h>
 #ifndef __linux__
@@ -2906,17 +2907,54 @@ FVClickStayedPut (NSEvent *down)
   RELEASE (operationActivity);
   operationActivity = [[activities objectForKey:kind] copy];
   [self updateActivity];
+  [[FVProgressPanel sharedPanel] beginOperation:operation
+                                           kind:kind
+                                        sources:sources
+                                    destination:destination ? destination : path
+                                          owner:self];
   [operation start];
 }
 
-- (void)operationProgress:(NSString *)message
+/* The progress window shows how far along the operation is; the status
+   line names the item being handled. */
+- (void)operationProgress:(NSDictionary *)progress
 {
-  if (!closed)
-    [status setStringValue:[message stringByAppendingString:@" • Edit → Cancel Work to stop"]];
+  if (![progress isKindOfClass:[NSDictionary class]]
+      || [progress objectForKey:@"operation"] != operation)
+    return;
+  [[FVProgressPanel sharedPanel] updateOperation:operation progress:progress];
+  if (closed || [operationActivity isEqual:@"Stopping…"])
+    return;
+  NSUInteger count = [[progress objectForKey:@"count"] unsignedIntegerValue];
+  NSString *name = [progress objectForKey:@"name"];
+  NSString *activity = [operationActivity hasSuffix:@"…"]
+      ? [operationActivity substringToIndex:[operationActivity length] - 1] : operationActivity;
+  if ([[progress objectForKey:@"preparing"] boolValue])
+    [status setStringValue:[NSString stringWithFormat:@"Counting “%@”…", name]];
+  else if ([name length])
+    [status setStringValue:count > 1
+        ? [NSString stringWithFormat:@"%@ “%@” (%lu of %lu)…", activity, name,
+              (unsigned long)[[progress objectForKey:@"index"] unsignedIntegerValue] + 1,
+              (unsigned long)count]
+        : [NSString stringWithFormat:@"%@ “%@”…", activity, name]];
+}
+
+/* The progress window's Stop button. */
+- (void)stopOperation:(id)sender
+{
+  if (!operation)
+    return;
+  [operation cancel];
+  [[FVProgressPanel sharedPanel] operationStopping:operation];
+  RELEASE (operationActivity);
+  operationActivity = [@"Stopping…" copy];
+  [self updateActivity];
+  [status setStringValue:@"Stopping; items already finished stay where they are."];
 }
 
 - (void)operationFinished:(NSDictionary *)result
 {
+  [[FVProgressPanel sharedPanel] endOperation:operation];
   RELEASE (operation);
   operation = nil;
   RELEASE (operationActivity);
@@ -3054,15 +3092,14 @@ FVClickStayedPut (NSEvent *down)
   listing = nil;
   generation++;
   pendingBrowserLoads = 0;
-  [operation cancel];
   loading = NO;
   if (operation)
     {
-      RELEASE (operationActivity);
-      operationActivity = [@"Cancelling…" copy];
+      [self stopOperation:sender];
+      return;
     }
   [self updateActivity];
-  [status setStringValue:@"Cancellation requested; completed items are retained"];
+  [status setStringValue:@"Stopped loading."];
 }
 
 - (void)selectAll:(id)sender

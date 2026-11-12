@@ -121,7 +121,15 @@ Inspected development environment:
   to prevent overlap; this works even when hover tooltips are disabled.
 - The bottom-right status indicator shows current activity, such as Loading,
   Searching, Launching application, Waiting for input, file operations and
-  thumbnail generation, and is empty when nothing is happening. File counts and detailed progress remain on the left.
+  thumbnail generation, and is empty when nothing is happening. File counts remain on the left.
+- A copy, move, Duplicate, Move to Trash or Delete Permanently still running
+  after a moment opens the Processes window, like NeXTSTEP's: one row per
+  running operation with what it does ("Copying 3 items to “Documents”"), a
+  progress bar driven by bytes and files copied (by items for moves within one
+  filesystem, Trash and delete), the item being handled, and a Stop button.
+  It closes itself when the last operation finishes. Edit → Cancel Work stops
+  the window's operation from the keyboard. Stopping leaves the item in hand as
+  it was and keeps the items already finished; it is not reported as a failure.
 - Image and movie thumbnails are enabled by default in icon, list and column
   views. Audio files with embedded artwork can also show a preview. Preferences
   → Show thumbnails applies immediately to all open windows and remembers your
@@ -253,7 +261,8 @@ permanent deletion is between top-level items, not inside NSFileManager removal.
 | `FVApplication` | Menus, startup path delivery, window ownership, application icon |
 | `FVWindow` | Window/controller, navigation, sidebar/preferences, adapters, dialogs, info/results panels, polling adapter |
 | `FVModel` | File items and cancellable batched background listings/search |
-| `FVOperations` | Operation scheduling, conflicts/results, POSIX copying/moving, guarded undo, home Trash |
+| `FVOperations` | Operation scheduling, progress, conflicts/results, POSIX copying/moving, guarded undo, home Trash |
+| `FVPanels` | The Processes (progress) window and size formatting |
 | `FVIconView` | Native icon layout, selection, keyboard navigation and drag/drop |
 | `FVLauncher` | File-type associations and direct application activation/launch |
 | `main.m` | MRC application lifecycle |
