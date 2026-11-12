@@ -11,8 +11,9 @@ user files for delete, replacement, Trash or recovery tests.
 - [ ] Resize from minimum size to full screen; test light/dark themes and large
       fonts. Confirm toolbar input stays usable, labels readable, views scroll.
 - [ ] Create a second window; navigate independently, close either during listing.
-- [ ] Exercise Back, Forward, Up, Home, Go to Folder (`~`, spaces, nonexistent
-      folder, inaccessible folder) and the ancestor popup.
+- [ ] Exercise Back, Forward, Up, Home, Go to Folder (`~`, relative paths, Tab
+      completion with one and several matches, recent folders in the menu, spaces,
+      nonexistent folder, inaccessible folder) and the ancestor popup.
 - [ ] Add/remove favorites, toggle hidden files and folders-first, switch views,
       restart and check saved path/view/frame/preferences.
 - [ ] Confirm no absent Desktop/Documents/Downloads folders are created.
