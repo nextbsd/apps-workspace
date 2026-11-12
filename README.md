@@ -181,8 +181,11 @@ Only one operation runs per window; other windows remain independent.
 - Cut does not remove anything initially. Paste moves. Successful entries are
   removed from the cut list only if the clipboard has not since changed; failed
   entries remain available. Move To explicitly chooses another destination.
-- Rename uses a native dialog. New Folder rejects empty, `.`/`..`, slash and NUL
-  names. Duplicate chooses a new sibling name the way Finder does: "notes copy.txt",
+- Rename uses a native dialog. New Folder creates "New Folder" (or "New Folder 2"…)
+  at once in the folder the view shows (in columns, the selected folder), selects it
+  and edits its name in place: Return keeps the typed name, Escape keeps the default.
+  Empty, `.`/`..`, slash and NUL names and names already taken are refused in
+  place, with the reason in the status bar. Duplicate chooses a new sibling name the way Finder does: "notes copy.txt",
   then "notes copy 2.txt". Pasting or dropping a copy into the item's own folder
   does the same; pasting a cut item back into its own folder does nothing.
 - Conflicts offer Keep Both, Skip, Replace, Cancel and Apply to Remaining.

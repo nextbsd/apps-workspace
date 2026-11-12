@@ -1349,6 +1349,11 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       [history addObject:value];
       historyIndex = [history count] - 1;
     }
+  if (![value isEqual:path])
+    {
+      RELEASE (revealPath);
+      revealPath = nil;
+    }
   NSString *newPath = [value copy];
   RELEASE (path);
   path = newPath;
@@ -1399,6 +1404,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 
 - (void)refresh:(id)sender
 {
+  [self endEditingName:NO];
   [self invalidateThumbnails];
   NSMutableDictionary *columns = [NSMutableDictionary dictionary];
   NSInteger column;
@@ -1418,10 +1424,16 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
         }
       [columns setObject:selected forKey:folder];
     }
+  NSArray *selection = [self selectedPaths];
+  if (revealPath)
+    {
+      selection = [NSArray arrayWithObject:revealPath];
+      [columns setObject:selection forKey:[revealPath stringByDeletingLastPathComponent]];
+    }
   RELEASE (savedBrowserSelection);
   savedBrowserSelection = [columns copy];
   RELEASE (savedSelection);
-  savedSelection = [[self selectedPaths] copy];
+  savedSelection = [selection copy];
   savedScroll = [[scroll contentView] bounds].origin;
   [listing cancel];
   RELEASE (listing);
@@ -1476,6 +1488,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       [browser loadColumnZero];
       [self restoreBrowserColumn:0];
       [self checkDirectory:nil];
+      [self showRevealedItem];
     }
   [status
       setStringValue:[NSString
@@ -1827,6 +1840,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 
 - (void)windowWillClose:(NSNotification *)note
 {
+  [self endEditingName:NO];
   closed = YES;
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   [self invalidateThumbnails];
@@ -2088,21 +2102,210 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   [status setStringValue:@"Saved Open With choices cleared for the selected file types."];
 }
 
+/* New Folder makes "New Folder" (or "New Folder 2"…) at once in the folder the
+   view shows, selects it and starts editing its name in place. */
 - (void)newFolder:(id)sender
 {
-  if ([path isEqual:FVRecentsLocation])
+  if ([path isEqual:FVRecentsLocation] || operation)
     return;
-  NSString *name = FVPrompt (self, @"New Folder", @"Name of the new folder:", @"Untitled Folder");
-  if (!name)
-    return;
-  if (![FVOperations validName:name])
+  [self endEditingName:YES];
+  NSString *folder = mode == 1 && browser ? [self browserFolder:[browser lastColumn]] : path;
+  if (!folder)
+    folder = path;
+  NSString *target = [folder stringByAppendingPathComponent:@"New Folder"];
+  NSUInteger n = 2;
+  struct stat st;
+  while (lstat ([target fileSystemRepresentation], &st) == 0)
+    target = [folder stringByAppendingPathComponent:
+                         [NSString stringWithFormat:@"New Folder %lu", (unsigned long)n++]];
+  RELEASE (revealPath);
+  revealPath = [target copy];
+  editRevealed = YES;
+  [self runOperation:@"mkdir" paths:[NSArray arrayWithObject:target] destination:nil];
+}
+
+/* Inline name editing lays one text field over the item's name in whichever
+   view shows it: a list row, a browser cell or an icon label. */
+- (NSView *)nameViewForPath:(NSString *)value rect:(NSRect *)rect
+{
+  if (mode == 1)
     {
-      FVRunAlert (@"New Folder", @"Invalid Name", FVInvalidNameMessage, @"OK", nil);
-      return;
+      NSInteger column;
+      for (column = 0; browser && column <= [browser lastColumn]; column++)
+        {
+          NSMatrix *matrix = [browser matrixInColumn:column];
+          NSInteger row;
+          for (row = 0; matrix && row < [matrix numberOfRows]; row++)
+            if ([[[matrix cellAtRow:row column:0] representedObject] isEqual:value])
+              {
+                NSRect cell = [matrix cellFrameAtRow:row column:0];
+                *rect = NSMakeRect (NSMinX (cell) + 22, NSMinY (cell) - 1, NSWidth (cell) - 40,
+                                    NSHeight (cell) + 2);
+                return matrix;
+              }
+        }
+      return nil;
     }
-  [self runOperation:@"mkdir"
-               paths:[NSArray arrayWithObject:[path stringByAppendingPathComponent:name]]
-         destination:nil];
+  NSUInteger i;
+  for (i = 0; i < [items count]; i++)
+    if ([[[items objectAtIndex:i] path] isEqual:value])
+      break;
+  if (i == [items count])
+    return nil;
+  if (mode == 2)
+    {
+      *rect = [icons labelRectForIndex:i];
+      return icons;
+    }
+  NSRect cell = [table frameOfCellAtColumn:[table columnWithIdentifier:@"name"] row:i];
+  *rect = NSMakeRect (NSMinX (cell) + 21, NSMinY (cell) - 1, NSWidth (cell) - 21,
+                      NSHeight (cell) + 2);
+  return table;
+}
+
+- (void)beginEditingName:(NSString *)value
+{
+  [self endEditingName:NO];
+  NSRect rect;
+  NSView *view = [self nameViewForPath:value rect:&rect];
+  if (!view)
+    return;
+  [view scrollRectToVisible:rect];
+  if (!nameEditor)
+    {
+      nameEditor = [[NSTextField alloc] initWithFrame:rect];
+      [nameEditor setFont:[NSFont systemFontOfSize:[NSFont systemFontSize]]];
+      [nameEditor setDelegate:self];
+    }
+  [nameEditor setFrame:rect];
+  NSString *name = [value lastPathComponent];
+  [nameEditor setStringValue:name];
+  editingPath = [value copy];
+  [view addSubview:nameEditor];
+  [[self window] makeFirstResponder:nameEditor];
+  /* Select the name without its extension, as Finder does for files. */
+  NSUInteger length = [name length];
+  NSString *base = [name stringByDeletingPathExtension];
+  if (![[FVItem itemAtPath:value] directory] && [[name pathExtension] length] && [base length])
+    length = [base length];
+  [[nameEditor currentEditor] setSelectedRange:NSMakeRange (0, length)];
+}
+
+/* Return: rename unless the name is invalid or taken, which is refused in
+   place with the editor left open. */
+- (BOOL)commitNameEdit
+{
+  if (!editingPath)
+    return YES;
+  NSString *source = AUTORELEASE ([editingPath copy]);
+  NSString *name = [nameEditor stringValue];
+  if ([name isEqual:[source lastPathComponent]])
+    {
+      [self endEditingName:YES];
+      return YES;
+    }
+  NSString *dest = [[source stringByDeletingLastPathComponent] stringByAppendingPathComponent:name];
+  NSString *problem = nil;
+  struct stat a, b;
+  if (![FVOperations validName:name])
+    problem = FVInvalidNameMessage;
+  else if (lstat ([dest fileSystemRepresentation], &b) == 0
+           && (lstat ([source fileSystemRepresentation], &a) || a.st_dev != b.st_dev
+               || a.st_ino != b.st_ino))
+    problem = [NSString stringWithFormat:@"The name “%@” is already taken. Choose a different name.",
+                                         name];
+  else if (operation)
+    problem = @"Wait for the current operation to finish, then press Return again.";
+  if (problem)
+    {
+      NSBeep ();
+      [status setStringValue:problem];
+      return NO;
+    }
+  [self endEditingName:YES];
+  RELEASE (revealPath);
+  revealPath = [dest copy];
+  editRevealed = NO;
+  [self runOperation:@"rename" paths:[NSArray arrayWithObject:source] destination:dest];
+  return YES;
+}
+
+/* Escape ends editing without renaming; a new folder keeps its default name. */
+- (void)endEditingName:(BOOL)refocus
+{
+  if (!editingPath)
+    return;
+  NSView *view = [nameEditor superview];
+  RELEASE (editingPath);
+  editingPath = nil;
+  if (refocus && view)
+    [[self window] makeFirstResponder:view];
+  [nameEditor abortEditing];
+  [nameEditor removeFromSuperview];
+  [view setNeedsDisplay:YES];
+  [self selectionChanged];
+}
+
+- (BOOL)control:(NSControl *)control
+               textView:(NSTextView *)textView
+    doCommandBySelector:(SEL)command
+{
+  if (control != nameEditor || !editingPath)
+    return NO;
+  if (command == @selector (insertNewline:))
+    {
+      [self commitNameEdit];
+      return YES;
+    }
+  /* GNUstep binds Escape to complete:. */
+  if (command == @selector (cancelOperation:) || command == @selector (complete:))
+    {
+      [self endEditingName:YES];
+      return YES;
+    }
+  return NO;
+}
+
+/* Return (which GNUstep's field editor turns into the end of editing) and
+   clicking elsewhere commit. A refused name keeps the editor open after
+   Return and is dropped after a click elsewhere. */
+- (void)controlTextDidEndEditing:(NSNotification *)note
+{
+  if ([note object] != nameEditor || !editingPath || [self commitNameEdit])
+    return;
+  if ([[[note userInfo] objectForKey:@"NSTextMovement"] integerValue] == NSReturnTextMovement)
+    [self performSelector:@selector (resumeEditingName) withObject:nil afterDelay:0];
+  else
+    [self endEditingName:NO];
+}
+
+- (void)resumeEditingName
+{
+  if (!editingPath || ![nameEditor superview])
+    return;
+  [[self window] makeFirstResponder:nameEditor];
+  [[nameEditor currentEditor] selectAll:nil];
+}
+
+/* After a refresh, select the item just created or renamed, and edit a new
+   folder's name once its row, cell or icon exists. */
+- (void)showRevealedItem
+{
+  NSRect rect;
+  if (!revealPath || operation || ![self nameViewForPath:revealPath rect:&rect])
+    return;
+  NSString *value = AUTORELEASE (revealPath);
+  revealPath = nil;
+  if (mode == 1)
+    {
+      NSView *matrix = [self nameViewForPath:value rect:&rect];
+      [[self window] makeFirstResponder:matrix];
+    }
+  if (editRevealed)
+    {
+      editRevealed = NO;
+      [self beginEditingName:value];
+    }
 }
 
 - (void)rename:(id)sender
@@ -2571,6 +2774,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 
 - (void)listMode:(id)sender
 {
+  [self endEditingName:NO];
   if (mode == 2)
     [table selectRowIndexes:[icons selection] byExtendingSelection:NO];
   mode = 0;
@@ -2583,6 +2787,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 
 - (void)iconMode:(id)sender
 {
+  [self endEditingName:NO];
   NSIndexSet *selected = [table selectedRowIndexes];
   if (!icons)
     icons = [[FVIconView alloc] initWithOwner:self];
@@ -2615,6 +2820,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 
 - (void)columnMode:(id)sender
 {
+  [self endEditingName:NO];
   if ([path isEqual:FVRecentsLocation])
     {
       [self listMode:nil];
@@ -2735,6 +2941,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       [browser reloadColumn:column];
       [self restoreBrowserColumn:column];
       [self checkDirectory:nil];
+      [self showRevealedItem];
     }
   if ([result objectForKey:@"error"])
     [status setStringValue:[result objectForKey:@"error"]];
@@ -2926,7 +3133,9 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   monitorBusy = NO;
   if (closed || [[stamp objectForKey:@"generation"] unsignedIntegerValue] != generation)
     return;
-  if (loading || operation || searching)
+  /* Keep the old stamp while a name is edited in place; the change is
+     picked up once editing ends. */
+  if (loading || operation || searching || editingPath)
     return;
   NSDictionary *previous = [[lastStamp objectForKey:@"path"] isEqual:path]
                                ? [lastStamp objectForKey:@"snapshots"] : nil;
@@ -3049,6 +3258,10 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   RELEASE (sortKey);
   RELEASE (infoPanels);
   RELEASE (undoRecords);
+  [nameEditor setDelegate:nil];
+  RELEASE (nameEditor);
+  RELEASE (editingPath);
+  RELEASE (revealPath);
   DEALLOC;
 }
 

@@ -34,8 +34,10 @@ user files for delete, replacement, Trash or recovery tests.
 
 ## Operations
 
-- [ ] New Folder and Rename dialogs: normal name, Unicode, spaces, leading dash,
-      empty name, slash and `..`; cancel without changing the filesystem.
+- [ ] New Folder in list, column and icon views: the folder appears with its name
+      being edited; normal name, Unicode, spaces, leading dash; empty name, slash,
+      `..` and a taken name are refused in place; Escape keeps "New Folder".
+- [ ] Rename dialog: the same names; cancel without changing the filesystem.
 - [ ] Copy and Cut/Paste, Duplicate, Move To; inspect both endpoints afterward.
 - [ ] Conflict choices Keep Both, Skip, Replace, Cancel and Apply to Remaining.
       Replace a directory and confirm the old tree is a separate retained backup,
