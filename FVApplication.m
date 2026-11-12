@@ -168,6 +168,8 @@ FVMigrateFileViewerDefaults (void)
   [menu addItemWithTitle:@"Quit" action:@selector (terminate:) keyEquivalent:@"q"];
   [NSApp setMainMenu:menu];
   launched = YES;
+  /* WindowServer tiles or stacks as the window mode in effect says. */
+  [FVDesktopSettings syncWindowServer];
   /* Like the Finder, Workspace starts with no File Viewer unless it was
      asked to open a folder: the first one comes when Workspace is opened
      again (see -applicationShouldHandleReopen:hasVisibleWindows:). */
@@ -354,7 +356,7 @@ FVMigrateFileViewerDefaults (void)
   if (!preferencesPanel)
     {
       preferencesPanel = [[NSPanel alloc]
-          initWithContentRect:NSMakeRect (0, 0, 540, 270)
+          initWithContentRect:NSMakeRect (0, 0, 540, 470)
                     styleMask:NSTitledWindowMask | NSClosableWindowMask
                       backing:NSBackingStoreBuffered defer:NO];
       [preferencesPanel setTitle:@"Preferences"];
@@ -362,7 +364,7 @@ FVMigrateFileViewerDefaults (void)
       /* General: the file viewer's settings. Desktop: NextBSD's desktop
          settings, whose defaults come from the theme. */
       NSTabView *tabs = AUTORELEASE ([[NSTabView alloc]
-          initWithFrame:NSMakeRect (10, 10, 520, 250)]);
+          initWithFrame:NSMakeRect (10, 10, 520, 450)]);
       [[preferencesPanel contentView] addSubview:tabs];
       NSRect page = [tabs contentRect];
       page.origin = NSZeroPoint;

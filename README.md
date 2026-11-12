@@ -25,6 +25,13 @@ settings (thumbnails, hidden files). **Desktop** holds NextBSD's desktop
 settings, whose defaults come from the active GNUstep theme
 ([nextbsd-theme](https://github.com/nextbsd/nextbsd-theme#desktop-defaults)):
 
+- **Window mode:** Stacking (floating windows) or Tiling (WindowServer lays
+  the windows out side by side) (`NBWindowMode`: `stacking`, `tiling`; the
+  NextBSD theme's default is stacking). Switching sets WindowServer's
+  `WindowMode` at once, so the windows tile or go back to their frames, and
+  applies the new mode's Dock position and menu style: in the NextBSD theme
+  the Dock on the right with NeXT menus while stacking, at the bottom with
+  in-window menus while tiling.
 - **Minimize windows:** NeXT miniwindows, WindowServer previews or into the
   Dock (`NBMinimizeStyle`: `nextstep`, `previews`, `dock`; the default is
   into the Dock, as live previews in its minimized-windows section). It
@@ -39,11 +46,28 @@ settings, whose defaults come from the active GNUstep theme
   ([libs-back#3](https://github.com/nextbsd/libs-back/issues/3)). A Dock on
   the top edge sits below the Mac menu bar.
 
+The Dock position and the menu style are kept for each window mode: a choice
+made while tiling is the tiling one, and comes back the next time you tile
+([nextbsd-theme#8](https://github.com/nextbsd/nextbsd-theme/issues/8)).
+
 Each menu has "Use theme default", which removes the user's value. The user's
-values go in `NSGlobalDomain` under the same keys. After a change, Workspace
-posts the distributed notification `org.nextbsd.DesktopSettingsChanged`, with
-the `key` that changed and its effective `value`. Window mode will join this
-tab once tiling exists.
+values go in `NSGlobalDomain`: the window mode and minimize style under the
+same keys, the Dock position and menu style in `NBModeSettings`, one
+dictionary per mode (a plain `NBDockPosition` or `NBMenuStyle` from before
+moves into its `stacking` entry). After a change, Workspace posts the
+distributed notification `org.nextbsd.DesktopSettingsChanged`, with the `key`
+that changed and its effective `value`, once for each setting whose value
+changed (switching mode posts `NBWindowMode`, then `NBDockPosition` and
+`NBMenuStyle`).
+
+The **Tiling** section, enabled while tiling, has WindowServer's own tiling
+settings: the layout (Dwindle, or Master and stack), the gaps between and
+around the windows, and a border around the active window (`TilingLayout`,
+`TilingGapsInner`, `TilingGapsOuter`, `TilingBorder`). Workspace keeps them,
+and `WindowMode`, in the user's `org.nextbsd.WindowServer` defaults (sent at
+login) and sends each change to WindowServer at once through the NextBSD
+backend. When Workspace starts, it sets `WindowMode` again if the window mode
+in effect changed meanwhile (a new theme).
 
 ## Gestures and shortcuts
 
