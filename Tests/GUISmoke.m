@@ -393,7 +393,7 @@ main (void)
   CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@"Loading…"]);
   [window showWindow:nil];
   Loaded (window);
-  CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@"Idle"]);
+  CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@""]);
   CheckLayout (window);
   [[window window] setContentSize:NSMakeSize (980, 640)];
   CheckLayout (window);
@@ -516,7 +516,7 @@ main (void)
   Action (window, @"newFolder:");
   CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@"Creating folder…"]);
   OperationDone (window);
-  CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@"Idle"]);
+  CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@""]);
   NSString *created = [root stringByAppendingPathComponent:@"Created through dialog"];
   CHECK ([fm fileExistsAtPath:created]);
   Action (window, @"undo:");
@@ -541,7 +541,7 @@ main (void)
   [window refresh:nil];
   CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@"Loading…"]);
   Action (window, @"cancel:");
-  CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@"Idle"]);
+  CHECK ([[[window valueForKey:@"activityStatus"] stringValue] isEqual:@""]);
   [[window window] close];
   [other refresh:nil];
   [[other window] close];

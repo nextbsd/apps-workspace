@@ -117,9 +117,9 @@ Inspected development environment:
   your choice, and updates all open windows immediately. Selecting an icon
   always expands its label to show the full name, with rows below shifted down
   to prevent overlap; this works even when hover tooltips are disabled.
-- The bottom-right status indicator shows current activity, such as Idle,
-  Loading, Searching, Launching application, Waiting for input, file operations,
-  and thumbnail generation. File counts and detailed progress remain on the left.
+- The bottom-right status indicator shows current activity, such as Loading,
+  Searching, Launching application, Waiting for input, file operations and
+  thumbnail generation, and is empty when nothing is happening. File counts and detailed progress remain on the left.
 - Image and movie thumbnails are enabled by default in icon, list and column
   views. Audio files with embedded artwork can also show a preview. Preferences
   → Show thumbnails applies immediately to all open windows and remembers your

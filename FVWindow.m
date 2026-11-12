@@ -1099,8 +1099,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
       [status setAutoresizingMask:NSViewWidthSizable];
       [[status cell] setLineBreakMode:NSLineBreakByTruncatingTail];
       [content addSubview:status];
-      activityStatus = RETAIN (FVLabel (NSMakeRect (contentSize.width - 240, 5, 230, 24),
-                                @"Idle"));
+      activityStatus = RETAIN (FVLabel (NSMakeRect (contentSize.width - 240, 5, 230, 24), @""));
       [activityStatus setAlignment:NSRightTextAlignment];
       [activityStatus setAutoresizingMask:NSViewMinXMargin];
       [[activityStatus cell] setLineBreakMode:NSLineBreakByTruncatingTail];
@@ -1852,7 +1851,8 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
 {
   if (closed)
     return;
-  NSString *message = @"Idle";
+  /* Show nothing while idle. */
+  NSString *message = @"";
   if (waitingForInput)
     message = @"Waiting for input…";
   else if (pendingLaunches)
@@ -1866,7 +1866,7 @@ FVSelectionEvent (NSEvent *event, NSUInteger modifiers)
   if (![[activityStatus stringValue] isEqual:message])
     {
       [activityStatus setStringValue:message];
-      [activityStatus setToolTip:message];
+      [activityStatus setToolTip:[message length] ? message : nil];
     }
 }
 
