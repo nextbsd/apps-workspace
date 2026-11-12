@@ -19,11 +19,48 @@
 
 #import <AppKit/AppKit.h>
 #import "FVApplication.h"
+#import "FVLauncher.h"
+
+/* Starting Workspace while it already runs (openapp Workspace) reopens
+   the running one, as opening a running app does on macOS, instead of
+   starting a second copy. Asked to open folders, a new copy hands them
+   over through NSWorkspace like any other request. */
+static BOOL
+FVReopenRunningWorkspace (void)
+{
+  NSString *name = [[NSProcessInfo processInfo] processName];
+  NSArray *arguments = [[NSProcessInfo processInfo] arguments];
+  id app = nil;
+
+  if ([arguments count] > 1)
+    return NO;
+  NS_DURING
+    {
+      NSConnection *connection = [NSConnection connectionWithRegisteredName:name host:@""];
+      [connection setRequestTimeout:5];
+      [connection setReplyTimeout:5];
+      app = [connection rootProxy];
+    }
+  NS_HANDLER
+    {
+      app = nil;
+    }
+  NS_ENDHANDLER
+  if (app == nil)
+    return NO;
+  [FVLauncher reopenApplication:app];
+  return YES;
+}
 
 int
 main (int argc, const char **argv)
 {
   CREATE_AUTORELEASE_POOL (pool);
+  if (FVReopenRunningWorkspace ())
+    {
+      RELEASE (pool);
+      return 0;
+    }
   [NSApplication sharedApplication];
   FVApplication *delegate = [[FVApplication alloc] init];
   [NSApp setDelegate:delegate];

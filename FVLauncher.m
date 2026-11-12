@@ -200,6 +200,20 @@ FVCompareApplicationNames (id a, id b, void *context)
   return [found sortedArrayUsingFunction:FVCompareApplicationNames context:NULL];
 }
 
++ (void)reopenApplication:(id)app
+{
+  [app activateIgnoringOtherApps:YES];
+  /* An application that doesn't handle reopen just stays activated. */
+  NS_DURING
+    {
+      [app applicationShouldHandleReopen:nil hasVisibleWindows:NO];
+    }
+  NS_HANDLER
+    {
+    }
+  NS_ENDHANDLER
+}
+
 + (BOOL)launchApplication:(NSString *)application file:(NSString *)path
 {
   NSString *binary = [[NSWorkspace sharedWorkspace] locateApplicationBinary:application];
@@ -237,7 +251,7 @@ FVCompareApplicationNames (id a, id b, void *context)
               NS_VALRETURN (accepted);
             }
           else
-            [app activateIgnoringOtherApps:YES];
+            [self reopenApplication:app];
           NS_VALRETURN (YES);
         }
     }

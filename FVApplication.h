@@ -37,6 +37,7 @@
     andDeactivate:(BOOL)flag;
 - (void)newWindow:(id)sender;
 - (void)openPath:(NSString *)path;
+- (void)viewerBecameKey:(id)controller;
 - (void)preferences:(id)sender;
 
 @end
