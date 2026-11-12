@@ -19,6 +19,68 @@
 
 #import "FVPanels.h"
 
+/* Escape presses the panel's Cancel button, even while a text field edits. */
+@implementation FVDialogPanel
+
+- (void)sendEvent:(NSEvent *)event
+{
+  if ([event type] == NSKeyDown && [[event charactersIgnoringModifiers] isEqual:@"\e"])
+    {
+      NSArray *views = [[self contentView] subviews];
+      NSUInteger i;
+      for (i = 0; i < [views count]; i++)
+        {
+          id view = [views objectAtIndex:i];
+          if ([view isKindOfClass:[NSButton class]] && [[view keyEquivalent] isEqual:@"\e"])
+            {
+              [view performClick:self];
+              return;
+            }
+        }
+    }
+  [super sendEvent:event];
+}
+
+@end
+
+/* Dialog text stays legible and unselected on light and dark themes: a
+   selectable label becomes first responder and is drawn selected. */
+NSColor *
+FVDialogTextColor (NSWindow *window)
+{
+  NSColor *background = [[window backgroundColor]
+      colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
+  CGFloat brightness = background ? ([background redComponent] + [background greenComponent]
+                                      + [background blueComponent]) / 3 : 1;
+  return [NSColor colorWithCalibratedWhite:brightness < .5 ? .94 : .12 alpha:1];
+}
+
+/* Bounded modal sessions also observe programmatic completion while no X
+   events arrive (GNUstep's blocking modal peek otherwise waits indefinitely). */
+NSInteger
+FVRunModalPanel (NSPanel *panel)
+{
+  /* GUI's public session type is opaque, but libobjc2 sees the implementation's
+     complete struct encoding. Use untyped selectors with the verified pointer
+     ABI to avoid false typed-selector mismatch diagnostics. */
+  SEL beginSelector = NSSelectorFromString (@"beginModalSessionForWindow:");
+  SEL runSelector = NSSelectorFromString (@"runModalSession:");
+  SEL endSelector = NSSelectorFromString (@"endModalSession:");
+  NSModalSession (*beginSession) (id, SEL, NSWindow *)
+      = (void *)[NSApp methodForSelector:beginSelector];
+  NSInteger (*runSession) (id, SEL, NSModalSession) = (void *)[NSApp methodForSelector:runSelector];
+  void (*endSession) (id, SEL, NSModalSession) = (void *)[NSApp methodForSelector:endSelector];
+  NSModalSession session = beginSession (NSApp, beginSelector, panel);
+  NSInteger result = NSRunContinuesResponse;
+  while ((result = runSession (NSApp, runSelector, session)) == NSRunContinuesResponse)
+    [[NSRunLoop currentRunLoop] runMode:NSModalPanelRunLoopMode
+                             beforeDate:[NSDate dateWithTimeIntervalSinceNow:.02]];
+  endSession (NSApp, endSelector, session);
+  [panel orderOut:nil];
+  return result;
+}
+
+
 NSString *
 FVSizeString (unsigned long long bytes)
 {
@@ -312,6 +374,202 @@ FVItemsPhrase (NSArray *sources)
 {
   RELEASE (panel);
   RELEASE (rows);
+  DEALLOC;
+}
+
+@end
+
+static NSString *
+FVDateString (NSDate *date)
+{
+  static NSDateFormatter *formatter = nil;
+  if (!date)
+    return @"Unknown date";
+  if (!formatter)
+    {
+      formatter = [[NSDateFormatter alloc] init];
+      [formatter setFormatterBehavior:NSDateFormatterBehavior10_4];
+      [formatter setDateStyle:NSDateFormatterMediumStyle];
+      [formatter setTimeStyle:NSDateFormatterShortStyle];
+    }
+  return [formatter stringFromDate:date];
+}
+
+/* "Folder, 12 items", "Text document, 3.4 KB" */
+static NSString *
+FVConflictDescription (NSString *path, NSDictionary *attributes)
+{
+  NSString *type = [attributes fileType];
+  if ([type isEqual:NSFileTypeDirectory])
+    {
+      NSUInteger count = [[[NSFileManager defaultManager] contentsOfDirectoryAtPath:path
+                                                                              error:NULL] count];
+      return [NSString stringWithFormat:count == 1 ? @"Folder, %lu item" : @"Folder, %lu items",
+                                        (unsigned long)count];
+    }
+  if ([type isEqual:NSFileTypeSymbolicLink])
+    return @"Symbolic link";
+  NSString *extension = [path pathExtension];
+  NSString *kind = [extension length]
+      ? [NSString stringWithFormat:@"%@ file", [extension uppercaseString]] : @"File";
+  return [NSString stringWithFormat:@"%@, %@", kind, FVSizeString ([attributes fileSize])];
+}
+
+@implementation FVConflictPanel
+
+/* One side of the comparison: a caption, the icon, then name, kind and size,
+   and the modified date, marked when it is the newer of the two. */
+- (void)addItem:(NSString *)path
+        caption:(NSString *)caption
+     attributes:(NSDictionary *)attributes
+          newer:(BOOL)newer
+              x:(CGFloat)x
+{
+  NSView *content = [panel contentView];
+  NSColor *color = FVDialogTextColor (panel);
+  CGFloat width = 252;
+  NSFont *small = [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
+  NSTextField *label = FVPanelLabel (NSMakeRect (x, 214, width, 18),
+                                     newer ? [caption stringByAppendingString:@" — newer"] : caption,
+                                     small);
+  [label setTextColor:color];
+  [content addSubview:label];
+  NSImageView *icon = AUTORELEASE ([[NSImageView alloc] initWithFrame:NSMakeRect (x, 150, 56, 56)]);
+  [icon setImage:[[NSWorkspace sharedWorkspace] iconForFile:path]];
+  [icon setImageScaling:NSImageScaleProportionallyUpOrDown];
+  [icon setEditable:NO];
+  [content addSubview:icon];
+  CGFloat textX = x + 64, textWidth = width - 64;
+  NSTextField *name = FVPanelLabel (NSMakeRect (textX, 186, textWidth, 20), [path lastPathComponent],
+                                    [NSFont boldSystemFontOfSize:[NSFont systemFontSize]]);
+  [name setTextColor:color];
+  [name setToolTip:path];
+  [content addSubview:name];
+  NSTextField *kind = FVPanelLabel (NSMakeRect (textX, 166, textWidth, 18),
+                                    attributes ? FVConflictDescription (path, attributes)
+                                               : @"Unavailable",
+                                    small);
+  [kind setTextColor:color];
+  [content addSubview:kind];
+  NSString *modified = [NSString stringWithFormat:@"Modified %@",
+                                                  FVDateString ([attributes fileModificationDate])];
+  NSTextField *date = FVPanelLabel (NSMakeRect (textX, 146, textWidth, 18), modified, small);
+  [date setTextColor:color];
+  [date setToolTip:modified];
+  [content addSubview:date];
+}
+
+- (id)initWithSource:(NSString *)source
+         destination:(NSString *)destination
+                kind:(NSString *)kind
+           remaining:(NSUInteger)remaining
+{
+  if (!(self = [super init]))
+    return nil;
+  BOOL move = [kind isEqual:@"move"];
+  panel = [[FVDialogPanel alloc] initWithContentRect:NSMakeRect (0, 0, 560, 340)
+                                           styleMask:NSTitledWindowMask
+                                             backing:NSBackingStoreBuffered
+                                               defer:NO];
+  [panel setTitle:move ? @"Move" : @"Copy"];
+  NSView *content = [panel contentView];
+  NSColor *color = FVDialogTextColor (panel);
+  NSString *folder = [[destination stringByDeletingLastPathComponent] lastPathComponent];
+  NSTextField *heading = FVPanelLabel (
+      NSMakeRect (20, 278, 520, 44),
+      [NSString stringWithFormat:@"An item named “%@” already exists in “%@”.",
+                                 [destination lastPathComponent], folder],
+      [NSFont boldSystemFontOfSize:15]);
+  [[heading cell] setWraps:YES];
+  [[heading cell] setLineBreakMode:NSLineBreakByWordWrapping];
+  [heading setTextColor:color];
+  [content addSubview:heading];
+  NSTextField *question = FVPanelLabel (
+      NSMakeRect (20, 250, 520, 22),
+      [NSString stringWithFormat:@"Do you want to replace it with the one you’re %@?",
+                                 move ? @"moving" : @"copying"],
+      [NSFont systemFontOfSize:[NSFont systemFontSize]]);
+  [question setTextColor:color];
+  [content addSubview:question];
+  NSFileManager *fm = [NSFileManager defaultManager];
+  NSDictionary *existing = [fm attributesOfItemAtPath:destination error:NULL];
+  NSDictionary *incoming = [fm attributesOfItemAtPath:source error:NULL];
+  NSComparisonResult order = existing && incoming
+      ? [[existing fileModificationDate] compare:[incoming fileModificationDate]]
+      : NSOrderedSame;
+  [self addItem:destination
+         caption:@"Existing item"
+      attributes:existing
+           newer:order == NSOrderedDescending
+               x:20];
+  [self addItem:source
+         caption:move ? @"Item you’re moving" : @"Item you’re copying"
+      attributes:incoming
+           newer:order == NSOrderedAscending
+               x:288];
+  NSTextField *note = FVPanelLabel (
+      NSMakeRect (20, 96, 520, 36),
+      @"Replace keeps the old item beside the new one, named “Workspace replaced item…”. "
+      @"Folders are replaced, not merged.",
+      [NSFont systemFontOfSize:[NSFont smallSystemFontSize]]);
+  [[note cell] setWraps:YES];
+  [[note cell] setLineBreakMode:NSLineBreakByWordWrapping];
+  [note setTextColor:color];
+  [content addSubview:note];
+  applyToAll = [[NSButton alloc] initWithFrame:NSMakeRect (18, 62, 260, 24)];
+  [applyToAll setButtonType:NSSwitchButton];
+  [applyToAll setTitle:[NSString stringWithFormat:@"Apply to all (%lu more %@)",
+                                                  (unsigned long)remaining,
+                                                  remaining == 1 ? @"item" : @"items"]];
+  if (remaining)
+    [content addSubview:applyToAll];
+  /* Stop on the left; Skip, Keep Both (the default) and Replace on the right. */
+  NSArray *titles = [NSArray arrayWithObjects:@"Keep Both", @"Skip", @"Replace", @"Stop", nil];
+  CGFloat xs[] = { 330, 228, 442, 20 };
+  NSUInteger i;
+  for (i = 0; i < [titles count]; i++)
+    {
+      NSButton *button = AUTORELEASE ([[NSButton alloc]
+          initWithFrame:NSMakeRect (xs[i], 18, 98, 30)]);
+      [button setTitle:[titles objectAtIndex:i]];
+      [button setTag:i];
+      [button setTarget:self];
+      [button setAction:@selector (choose:)];
+      if (i == 0)
+        [button setKeyEquivalent:@"\r"];
+      else if (i == 3)
+        [button setKeyEquivalent:@"\e"];
+      [content addSubview:button];
+    }
+  return self;
+}
+
+- (void)choose:(id)sender
+{
+  [NSApp stopModalWithCode:[sender tag]];
+}
+
+- (NSInteger)run
+{
+  [panel center];
+  [panel makeKeyAndOrderFront:nil];
+  return FVRunModalPanel (panel);
+}
+
+- (BOOL)applyToAll
+{
+  return [applyToAll superview] && [applyToAll state] == NSOnState;
+}
+
+- (NSPanel *)panel
+{
+  return panel;
+}
+
+- (void)dealloc
+{
+  RELEASE (panel);
+  RELEASE (applyToAll);
   DEALLOC;
 }
 

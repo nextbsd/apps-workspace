@@ -932,7 +932,11 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
                   continue;
                 }
               NSMutableDictionary *request = [NSMutableDictionary
-                  dictionaryWithObjectsAndKeys:source, @"source", dest, @"destination", nil];
+                  dictionaryWithObjectsAndKeys:source, @"source", dest, @"destination", kind,
+                                               @"kind",
+                                               [NSNumber numberWithUnsignedInteger:
+                                                             [sources count] - i - 1],
+                                               @"remaining", nil];
               if (policy)
                 [request setObject:policy forKey:@"choice"];
               else

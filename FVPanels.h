@@ -19,6 +19,20 @@
 
 #import <AppKit/AppKit.h>
 
+/* A modal panel run through FVWindow's -runDialog:, which returns its button index. */
+@protocol FVModalDialog
+- (NSInteger)run;
+@end
+
+/* Escape presses the panel's button whose key equivalent is Escape. */
+@interface FVDialogPanel : NSPanel
+@end
+
+/* Dialog text that stays legible and unselected on light and dark themes. */
+NSColor *FVDialogTextColor (NSWindow *window);
+/* Runs a panel modally; returns the code given to -stopModalWithCode:. */
+NSInteger FVRunModalPanel (NSPanel *panel);
+
 /* "12 bytes", "3.4 KB", "12.1 MB": decimal units, as Finder shows them. */
 NSString *FVSizeString (unsigned long long bytes);
 
@@ -42,6 +56,26 @@ NSString *FVSizeString (unsigned long long bytes);
 - (void)updateOperation:(id)operation progress:(NSDictionary *)progress;
 - (void)operationStopping:(id)operation;
 - (void)endOperation:(id)operation;
+- (NSPanel *)panel;
+
+@end
+
+/* Asked when a copy or move meets an item of the same name: shows both items
+   (icon, name, kind, size, modified date) with Keep Both, Skip, Replace and
+   Stop, and "Apply to all" when more items follow. -run returns 0 Keep Both,
+   1 Skip, 2 Replace or 3 Stop. */
+@interface FVConflictPanel : NSObject <FVModalDialog>
+{
+  NSPanel *panel;
+  NSButton *applyToAll;
+}
+
+- (id)initWithSource:(NSString *)source
+         destination:(NSString *)destination
+                kind:(NSString *)kind
+           remaining:(NSUInteger)remaining;
+- (NSInteger)run;
+- (BOOL)applyToAll;
 - (NSPanel *)panel;
 
 @end

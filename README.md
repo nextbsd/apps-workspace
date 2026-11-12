@@ -201,7 +201,10 @@ Only one operation runs per window; other windows remain independent.
   place, with the reason in the status bar. Duplicate chooses a new sibling name the way Finder does: "notes copy.txt",
   then "notes copy 2.txt". Pasting or dropping a copy into the item's own folder
   does the same; pasting a cut item back into its own folder does nothing.
-- Conflicts offer Keep Both, Skip, Replace, Cancel and Apply to Remaining.
+- When a copy or move meets an item of the same name, a conflict panel shows
+  both items side by side (icon, name, kind, size or folder item count, and
+  modified date, with the newer one marked) and offers Keep Both (the default),
+  Skip, Replace and Stop, plus "Apply to all" when more items follow.
   Replace moves the existing destination aside to a uniquely named
   `Workspace replaced item-…` sibling and reports its path. It does **not** merge
   directories or silently erase the previous destination. Remove the retained
@@ -262,7 +265,7 @@ permanent deletion is between top-level items, not inside NSFileManager removal.
 | `FVWindow` | Window/controller, navigation, sidebar/preferences, adapters, dialogs, info/results panels, polling adapter |
 | `FVModel` | File items and cancellable batched background listings/search |
 | `FVOperations` | Operation scheduling, progress, conflicts/results, POSIX copying/moving, guarded undo, home Trash |
-| `FVPanels` | The Processes (progress) window and size formatting |
+| `FVPanels` | The Processes (progress) window, the conflict panel, the shared modal panel helpers and size formatting |
 | `FVIconView` | Native icon layout, selection, keyboard navigation and drag/drop |
 | `FVLauncher` | File-type associations and direct application activation/launch |
 | `main.m` | MRC application lifecycle |

@@ -89,11 +89,6 @@ FVViewerTextColor (void)
 
 @end
 
-/* A modal panel run through -runDialog:, which returns its button index. */
-@protocol FVModalDialog
-- (NSInteger)run;
-@end
-
 @interface FVWindow (Activity)
 
 - (NSInteger)runDialog:(id<FVModalDialog>)dialog;
@@ -375,47 +370,6 @@ FVCompare (id lhs, id rhs, void *context)
   return [[options objectForKey:@"ascending"] boolValue] ? result : -result;
 }
 
-/* Escape presses the panel's Cancel button, even while a text field edits. */
-@interface FVDialogPanel : NSPanel
-@end
-
-@implementation FVDialogPanel
-
-- (void)sendEvent:(NSEvent *)event
-{
-  if ([event type] == NSKeyDown && [[event charactersIgnoringModifiers] isEqual:@"\e"])
-    {
-      NSArray *views = [[self contentView] subviews];
-      NSUInteger i;
-      for (i = 0; i < [views count]; i++)
-        {
-          id view = [views objectAtIndex:i];
-          if ([view isKindOfClass:[NSButton class]] && [[view keyEquivalent] isEqual:@"\e"])
-            {
-              [view performClick:self];
-              return;
-            }
-        }
-    }
-  [super sendEvent:event];
-}
-
-@end
-
-/* Dialog text stays legible and unselected on light and dark themes: a
-   selectable label becomes first responder and is drawn selected. */
-static NSColor *
-FVDialogTextColor (NSWindow *window)
-{
-  NSColor *background = [[window backgroundColor]
-      colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
-  CGFloat brightness = background ? ([background redComponent] + [background greenComponent]
-                                      + [background blueComponent]) / 3 : 1;
-  return [NSColor colorWithCalibratedWhite:brightness < .5 ? .94 : .12 alpha:1];
-}
-
-static NSInteger FVRunModalPanel (NSPanel *panel);
-
 /* A small modal panel avoids unsupported NSAlert accessory APIs. */
 @interface FVDialog : NSObject <FVModalDialog>
 {
@@ -566,13 +520,6 @@ static NSInteger FVRunModalPanel (NSPanel *panel);
           [field setStringValue:value];
           [content addSubview:field];
         }
-      else
-        {
-          apply = [[NSButton alloc] initWithFrame:NSMakeRect (18, 70, 400, 26)];
-          [apply setButtonType:NSSwitchButton];
-          [apply setTitle:@"Apply to remaining conflicts"];
-          [content addSubview:apply];
-        }
       NSUInteger i;
       CGFloat width = 584.0 / [buttons count];
       for (i = 0; i < [buttons count]; i++)
@@ -629,31 +576,6 @@ static NSInteger FVRunModalPanel (NSPanel *panel);
 }
 
 @end
-
-/* Bounded modal sessions also observe programmatic completion while no X
-   events arrive (GNUstep's blocking modal peek otherwise waits indefinitely). */
-static NSInteger
-FVRunModalPanel (NSPanel *panel)
-{
-  /* GUI's public session type is opaque, but libobjc2 sees the implementation's
-     complete struct encoding. Use untyped selectors with the verified pointer
-     ABI to avoid false typed-selector mismatch diagnostics. */
-  SEL beginSelector = NSSelectorFromString (@"beginModalSessionForWindow:");
-  SEL runSelector = NSSelectorFromString (@"runModalSession:");
-  SEL endSelector = NSSelectorFromString (@"endModalSession:");
-  NSModalSession (*beginSession) (id, SEL, NSWindow *)
-      = (void *)[NSApp methodForSelector:beginSelector];
-  NSInteger (*runSession) (id, SEL, NSModalSession) = (void *)[NSApp methodForSelector:runSelector];
-  void (*endSession) (id, SEL, NSModalSession) = (void *)[NSApp methodForSelector:endSelector];
-  NSModalSession session = beginSession (NSApp, beginSelector, panel);
-  NSInteger result = NSRunContinuesResponse;
-  while ((result = runSession (NSApp, runSelector, session)) == NSRunContinuesResponse)
-    [[NSRunLoop currentRunLoop] runMode:NSModalPanelRunLoopMode
-                             beforeDate:[NSDate dateWithTimeIntervalSinceNow:.02]];
-  endSession (NSApp, endSelector, session);
-  [panel orderOut:nil];
-  return result;
-}
 
 /* Go to Folder: one path field that completes folder names with Tab, lists
    recent and matching folders in its menu, accepts ~ and paths relative to
@@ -3052,23 +2974,16 @@ FVClickStayedPut (NSEvent *down)
       [request setObject:@"cancel" forKey:@"choice"];
       return;
     }
-  FVDialog *dialog = AUTORELEASE (([[FVDialog alloc]
-      initWithTitle:@"Item Already Exists"
-            message:[NSString
-                        stringWithFormat:
-                            @"An item named “%@” already exists in “%@”.\n\nReplace keeps the "
-                            @"old item beside it as “Workspace replaced item…”. Folders are "
-                            @"replaced, never merged.",
-                            [[request objectForKey:@"destination"] lastPathComponent],
-                            [[[request objectForKey:@"destination"]
-                                stringByDeletingLastPathComponent] lastPathComponent]]
-              value:nil
-            buttons:[NSArray arrayWithObjects:@"Keep Both", @"Skip", @"Replace", @"Cancel", nil]]));
+  FVConflictPanel *dialog = AUTORELEASE ([[FVConflictPanel alloc]
+      initWithSource:[request objectForKey:@"source"]
+         destination:[request objectForKey:@"destination"]
+                kind:[request objectForKey:@"kind"]
+           remaining:[[request objectForKey:@"remaining"] unsignedIntegerValue]]);
   NSInteger choice = [self runDialog:dialog];
   NSArray *choices = [NSArray arrayWithObjects:@"keep", @"skip", @"replace", @"cancel", nil];
   [request setObject:choice >= 0 && choice < 4 ? [choices objectAtIndex:choice] : @"cancel"
               forKey:@"choice"];
-  [request setObject:[NSNumber numberWithBool:[dialog apply]] forKey:@"apply"];
+  [request setObject:[NSNumber numberWithBool:[dialog applyToAll]] forKey:@"apply"];
 }
 
 - (void)undo:(id)sender
