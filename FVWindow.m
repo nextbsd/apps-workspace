@@ -364,213 +364,6 @@ FVCompare (id lhs, id rhs, void *context)
   return [[options objectForKey:@"ascending"] boolValue] ? result : -result;
 }
 
-/* A small modal panel avoids unsupported NSAlert accessory APIs. */
-@interface FVDialog : NSObject <FVModalDialog>
-{
-  NSPanel *panel;
-  NSTextField *field;
-  NSButton *apply;
-  NSPopUpButton *choices;
-}
-
-- (id)initWithTitle:(NSString *)title
-            message:(NSString *)message
-              value:(NSString *)value
-            buttons:(NSArray *)buttons;
-- (NSInteger)run;
-- (NSString *)value;
-- (BOOL)apply;
-- (id)initWithApplications:(NSArray *)applications file:(NSString *)path;
-- (NSString *)selectedApplication;
-- (void)browseApplication:(id)sender;
-
-@end
-
-@implementation FVDialog
-
-- (id)initWithApplications:(NSArray *)applications file:(NSString *)path
-{
-  self = [self initWithTitle:@"Open With"
-                    message:[NSString stringWithFormat:@"Choose an application to open %@.",
-                                                       [path lastPathComponent]]
-                      value:@""
-                    buttons:[NSArray arrayWithObjects:@"Open", @"Cancel", nil]];
-  if (self)
-    {
-      [panel setContentSize:NSMakeSize (620, 300)];
-      [field removeFromSuperview];
-      RELEASE (field);
-      field = nil;
-      NSColor *textColor = FVDialogTextColor (panel);
-      NSView *content = [panel contentView];
-      NSArray *views = [content subviews];
-      NSUInteger j;
-      for (j = 0; j < [views count]; j++)
-        {
-          id view = [views objectAtIndex:j];
-          if ([view isKindOfClass:[NSTextField class]])
-            {
-              [view setFrame:NSMakeRect (18, 250, 584, 30)];
-              [view setStringValue:@"Open With"];
-              [view setFont:[NSFont boldSystemFontOfSize:20]];
-              [view setTextColor:textColor];
-              [view setSelectable:NO];
-            }
-          else if ([view isKindOfClass:[NSButton class]] && [view tag] == 0)
-            [view setEnabled:[applications count] > 0];
-        }
-      NSTextField *filename = FVLabel (NSMakeRect (18, 210, 584, 32), [path lastPathComponent]);
-      [filename setFont:[NSFont systemFontOfSize:14]];
-      [filename setTextColor:textColor];
-      [filename setSelectable:NO];
-      [content addSubview:filename];
-      choices = [[NSPopUpButton alloc] initWithFrame:NSMakeRect (18, 164, 458, 28)
-                                          pullsDown:NO];
-      NSUInteger i;
-      for (i = 0; i < [applications count]; i++)
-        {
-          NSString *app = [applications objectAtIndex:i];
-          /* Include the path to distinguish installations with the same name. */
-          [choices addItemWithTitle:app];
-          [[choices lastItem] setRepresentedObject:app];
-        }
-      [[panel contentView] addSubview:choices];
-      NSButton *browse = FVButton (content, @"Other…", @selector (browseApplication:), self, 484, 118);
-      [browse setFrameOrigin:NSMakePoint (484, 164)];
-      [browse setTag:2];
-      apply = [[NSButton alloc] initWithFrame:NSMakeRect (18, 120, 584, 26)];
-      [apply setButtonType:NSSwitchButton];
-      [apply setTitle:@"Always open this file type with the selected application"];
-      [apply setEnabled:[[path pathExtension] length] > 0];
-      [content addSubview:apply];
-      NSString *help = [[path pathExtension] length]
-          ? [NSString stringWithFormat:@"Applies to .%@ files in Workspace.\nChange later with File → Open With…",
-                                       [[path pathExtension] lowercaseString]]
-          : @"Files without an extension can only be opened once with this choice.";
-      NSTextField *hint = FVLabel (NSMakeRect (18, 76, 584, 36), help);
-      [hint setTextColor:textColor];
-      [hint setFont:[NSFont systemFontOfSize:12]];
-      [hint setSelectable:NO];
-      [content addSubview:hint];
-    }
-  return self;
-}
-
-- (void)browseApplication:(id)sender
-{
-  NSOpenPanel *picker = [NSOpenPanel openPanel];
-  [picker setTitle:@"Choose an application"];
-  [picker setCanChooseDirectories:YES];
-  [picker setCanChooseFiles:YES];
-  [picker setAllowsMultipleSelection:NO];
-  NSArray *directories = NSSearchPathForDirectoriesInDomains (NSApplicationDirectory,
-                                                              NSAllDomainsMask, YES);
-  if ([picker runModalForDirectory:[directories count] ? [directories objectAtIndex:0] : nil
-                             file:nil types:[NSArray arrayWithObject:@"app"]] != NSOKButton)
-    return;
-  NSString *app = [picker filename];
-  if (![[NSWorkspace sharedWorkspace] locateApplicationBinary:app])
-    return;
-  [choices addItemWithTitle:app];
-  [[choices lastItem] setRepresentedObject:app];
-  [choices selectItem:[choices lastItem]];
-  NSArray *views = [[panel contentView] subviews];
-  NSUInteger i;
-  for (i = 0; i < [views count]; i++)
-    {
-      id view = [views objectAtIndex:i];
-      if ([view isKindOfClass:[NSButton class]] && [view tag] == 0 && view != apply)
-        [view setEnabled:YES];
-    }
-}
-
-- (NSString *)selectedApplication
-{
-  return [[choices selectedItem] representedObject];
-}
-
-- (id)initWithTitle:(NSString *)title
-            message:(NSString *)message
-              value:(NSString *)value
-            buttons:(NSArray *)buttons
-{
-  if ((self = [super init]))
-    {
-      /* A prompt is one line of text over its field; a choice gets more room. */
-      CGFloat height = value ? 140 : 230;
-      panel = [[FVDialogPanel alloc] initWithContentRect:NSMakeRect (0, 0, 620, height)
-                                               styleMask:NSTitledWindowMask
-                                                 backing:NSBackingStoreBuffered
-                                                   defer:NO];
-      [panel setTitle:title];
-      NSView *content = [panel contentView];
-      NSTextField *label = FVLabel (NSMakeRect (18, 100, 584, height - 118), message);
-      [label setSelectable:NO];
-      [label setTextColor:FVDialogTextColor (panel)];
-      [content addSubview:label];
-      if (value)
-        {
-          field = [[NSTextField alloc] initWithFrame:NSMakeRect (18, 64, 584, 28)];
-          [field setStringValue:value];
-          [content addSubview:field];
-        }
-      NSUInteger i;
-      CGFloat width = 584.0 / [buttons count];
-      for (i = 0; i < [buttons count]; i++)
-        {
-          NSButton *button = FVButton (content, [buttons objectAtIndex:i], @selector (choose:),
-                                       self, 18 + i * width, width - 6);
-          [button setFrameOrigin:NSMakePoint (18 + i * width, 18)];
-          [button setTag:i];
-          if (i == 0)
-            [button setKeyEquivalent:@"\r"];
-          else if ([[buttons objectAtIndex:i] isEqual:@"Cancel"])
-            [button setKeyEquivalent:@"\e"];
-        }
-    }
-  return self;
-}
-
-- (void)choose:(id)sender
-{
-  [NSApp stopModalWithCode:[sender tag]];
-}
-
-- (NSInteger)run
-{
-  [panel center];
-  [panel makeKeyAndOrderFront:nil];
-  if (field)
-    {
-      [panel makeFirstResponder:field];
-      [field selectText:nil];
-    }
-  else if (choices)
-    [panel makeFirstResponder:choices];
-  return FVRunModalPanel (panel);
-}
-
-- (NSString *)value
-{
-  return [field stringValue];
-}
-
-- (BOOL)apply
-{
-  return [apply state] == NSOnState;
-}
-
-- (void)dealloc
-{
-  RELEASE (panel);
-  RELEASE (field);
-  RELEASE (apply);
-  RELEASE (choices);
-  DEALLOC;
-}
-
-@end
-
 /* Go to Folder: one path field that completes folder names with Tab, lists
    recent and matching folders in its menu, accepts ~ and paths relative to
    the current folder, and reports a missing folder inside the panel. */
@@ -2000,7 +1793,7 @@ FVClickStayedPut (NSEvent *down)
 
 - (NSString *)chooseApplicationForFile:(NSString *)value
 {
-  FVDialog *dialog = AUTORELEASE ([[FVDialog alloc]
+  FVAppChooser *dialog = AUTORELEASE ([[FVAppChooser alloc]
       initWithApplications:[FVLauncher applicationsForFile:value] file:value]);
   if ([self runDialog:dialog] != 0)
     return nil;
@@ -2258,7 +2051,7 @@ FVClickStayedPut (NSEvent *down)
     }
 }
 
-/* Runs an FVDialog or FVGoPanel, showing "Waiting for input…" meanwhile. */
+/* Runs a modal panel (Go to Folder, conflicts, Open With), showing "Waiting for input…" meanwhile. */
 - (NSInteger)runDialog:(id<FVModalDialog>)dialog
 {
   waitingForInput = YES;
@@ -2410,15 +2203,6 @@ FVClickStayedPut (NSEvent *down)
         break;
       [self launchApplication:app file:value];
     }
-}
-
-- (void)resetOpenWith:(id)sender
-{
-  NSArray *selected = [self selectedPaths];
-  NSUInteger i;
-  for (i = 0; i < [selected count]; i++)
-    [FVLauncher setDefaultApplication:nil forFile:[selected objectAtIndex:i]];
-  [status setStringValue:@"Saved Open With choices cleared for the selected file types."];
 }
 
 /* New Folder makes "New Folder" (or "New Folder 2"…) at once in the folder the
@@ -3546,15 +3330,6 @@ FVClickStayedPut (NSEvent *down)
     return count == 1 && !operation;
   if (action == @selector (openWith:))
     return count > 0;
-  if (action == @selector (resetOpenWith:))
-    {
-      NSArray *selected = [self selectedPaths];
-      NSUInteger i;
-      for (i = 0; i < [selected count]; i++)
-        if ([FVLauncher defaultApplicationForFile:[selected objectAtIndex:i]])
-          return YES;
-      return NO;
-    }
   if (action == @selector (copy:) || action == @selector (cut:) || action == @selector (open:)
       || action == @selector (trash:) || action == @selector (deletePermanently:)
       || action == @selector (duplicate:) || action == @selector (moveTo:))

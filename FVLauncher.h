@@ -22,6 +22,9 @@
 @interface FVLauncher : NSObject
 
 + (NSArray *)applicationsForFile:(NSString *)path;
+/* Every application bundle in the Applications folders (and one level of
+   subfolders such as Utilities), sorted by name. */
++ (NSArray *)allApplications;
 + (NSString *)defaultApplicationForFile:(NSString *)path;
 + (void)setDefaultApplication:(NSString *)application forFile:(NSString *)path;
 + (BOOL)launchApplication:(NSString *)application file:(NSString *)path;

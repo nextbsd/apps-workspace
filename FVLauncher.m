@@ -94,6 +94,13 @@
 
 @end
 
+static NSInteger
+FVCompareApplicationNames (id a, id b, void *context)
+{
+  return [[[a lastPathComponent] stringByDeletingPathExtension]
+      localizedCaseInsensitiveCompare:[[b lastPathComponent] stringByDeletingPathExtension]];
+}
+
 @implementation FVLauncher
 
 + (NSString *)defaultApplicationForFile:(NSString *)path
@@ -156,6 +163,41 @@
         [result addObject:app];
     }
   return result;
+}
+
++ (NSArray *)allApplications
+{
+  NSFileManager *fm = [NSFileManager defaultManager];
+  NSWorkspace *workspace = [NSWorkspace sharedWorkspace];
+  NSMutableArray *found = [NSMutableArray array];
+  NSArray *roots = NSSearchPathForDirectoriesInDomains (NSAllApplicationsDirectory,
+                                                        NSAllDomainsMask, YES);
+  NSMutableArray *folders = [NSMutableArray arrayWithArray:roots];
+  NSUInteger i;
+  for (i = 0; i < [folders count]; i++)
+    {
+      NSString *folder = [folders objectAtIndex:i];
+      NSArray *names = [fm contentsOfDirectoryAtPath:folder error:NULL];
+      NSUInteger n;
+      for (n = 0; n < [names count]; n++)
+        {
+          NSString *name = [names objectAtIndex:n];
+          NSString *full = [folder stringByAppendingPathComponent:name];
+          BOOL directory = NO;
+          if ([name hasPrefix:@"."]
+              || ![fm fileExistsAtPath:full isDirectory:&directory] || !directory)
+            continue;
+          if ([[[name pathExtension] lowercaseString] isEqual:@"app"])
+            {
+              NSString *resolved = [full stringByResolvingSymlinksInPath];
+              if (![found containsObject:resolved] && [workspace locateApplicationBinary:resolved])
+                [found addObject:resolved];
+            }
+          else if ([roots containsObject:folder])
+            [folders addObject:full];
+        }
+    }
+  return [found sortedArrayUsingFunction:FVCompareApplicationNames context:NULL];
 }
 
 + (BOOL)launchApplication:(NSString *)application file:(NSString *)path
