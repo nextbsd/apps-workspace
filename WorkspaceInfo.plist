@@ -8,7 +8,6 @@
     "Based on FileViewer by:",
     "Gregory John Casamento <greg.casamento@gmail.com>"
   );
-  URL = "https://github.com/pkgdemon/apps-fileviewer";
   Copyright = "Copyright (C) 2026 Joseph Maloney. Based on FileViewer, Copyright (C) 2026 Gregory John Casamento";
   CopyrightDescription = "GNU General Public License version 3 or later; no warranty.";
   NSHumanReadableCopyright = "Copyright (C) 2026 Joseph Maloney. Based on FileViewer, Copyright (C) 2026 Gregory John Casamento";
