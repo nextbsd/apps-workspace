@@ -284,6 +284,24 @@
     [owner open:self];
 }
 
+/* Right-clicking an icon selects it, unless it's already selected, and
+   shows the item menu. */
+- (NSMenu *)menuForEvent:(NSEvent *)event
+{
+  NSInteger i = [self indexAtPoint:[self convertPoint:[event locationInWindow] fromView:nil]];
+  if (i < 0)
+    return nil;
+  if (![selection containsIndex:i])
+    {
+      [selection removeAllIndexes];
+      [selection addIndex:i];
+      anchor = focusedIndex = i;
+      [self reload];
+      [owner selectionChanged];
+    }
+  return [owner itemMenu];
+}
+
 - (void)keyDown:(NSEvent *)event
 {
   [NSObject cancelPreviousPerformRequestsWithTarget:self];

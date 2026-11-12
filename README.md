@@ -242,6 +242,20 @@ File → Open uses NSWorkspace associations. Recognized application bundles laun
 as packages; Show Package Contents enters them. Open With offers the application
 chooser described above.
 
+File → Add to Dock keeps the selected applications in the Dock, in order, at the
+end of its kept applications, as if they were dropped there: one already kept
+stays where it is, and a running one moves up from the running applications.
+It's enabled when the selection includes an application bundle. Workspace
+doesn't write the Dock's defaults; it posts the distributed notification
+`org.nextbsd.Dock.KeepApplications` with the bundle paths, which the Dock
+answers (see "Keeping applications from other programs" in nextbsd/apps-dock's
+README).
+
+Right-clicking an item in a File Viewer selects it (unless it's already
+selected) and shows a menu with Open, Open With…, Show Package Contents, Get
+Info, Rename, Add to Dock, Add to Favorites, Copy, Duplicate and Move to Trash,
+each enabled as in the menus.
+
 File → Get Info opens the Inspector, one window like NeXTSTEP's that follows
 the selection of the active File Viewer. It shows the item's icon, its name
 (type a new one and press Return to rename), kind, size (a folder's total and

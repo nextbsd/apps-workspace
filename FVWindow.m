@@ -127,6 +127,10 @@ FVVisibleLocationPaths (NSArray *paths)
 /* Favorites are folder paths saved in the Favorites default, in sidebar order. */
 static NSString *const FVFavoriteDragType = @"org.nextbsd.Workspace.favorite";
 
+/* The Dock owns its list of kept apps; Workspace asks it to keep some with
+   this distributed notification (see apps-dock's README). */
+static NSString *const FVDockKeepApplicationsNotification = @"org.nextbsd.Dock.KeepApplications";
+
 static NSMutableArray *
 FVFavoritePaths (void)
 {
@@ -184,6 +188,24 @@ FVPathsAreFolders (NSArray *paths)
         return NO;
     }
   return [paths count] > 0;
+}
+
+/* The application bundles among paths, in their order. */
+static NSArray *
+FVApplicationBundles (NSArray *paths)
+{
+  NSMutableArray *bundles = [NSMutableArray array];
+  NSUInteger i;
+  for (i = 0; i < [paths count]; i++)
+    {
+      NSString *candidate = [paths objectAtIndex:i];
+      BOOL directory = NO;
+      if ([[[candidate pathExtension] lowercaseString] isEqual:@"app"]
+          && [[NSFileManager defaultManager] fileExistsAtPath:candidate isDirectory:&directory]
+          && directory)
+        [bundles addObject:candidate];
+    }
+  return bundles;
 }
 
 /* A volume is a mount point directly inside a mount root. On the BSDs the
@@ -791,6 +813,18 @@ FVClickStayedPut (NSEvent *down)
                afterDelay:FVSlowClickDelay];
 }
 
+/* Right-clicking an item selects it, unless it's already selected, and
+   shows the item menu. */
+- (NSMenu *)menuForEvent:(NSEvent *)event
+{
+  NSInteger row = [self rowAtPoint:[self convertPoint:[event locationInWindow] fromView:nil]];
+  if (row < 0)
+    return nil;
+  if (![self isRowSelected:row])
+    [self selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];
+  return [(FVWindow *)[self target] itemMenu];
+}
+
 - (void)renameAfterSlowClick:(NSNumber *)row
 {
   if ([self numberOfSelectedRows] == 1 && [self isRowSelected:[row integerValue]]
@@ -924,6 +958,22 @@ FVClickStayedPut (NSEvent *down)
       return;
     }
   [super keyDown:event];
+}
+
+- (NSMenu *)menuForEvent:(NSEvent *)event
+{
+  NSInteger row, column;
+  if (![self getRow:&row column:&column
+            forPoint:[self convertPoint:[event locationInWindow] fromView:nil]])
+    return nil;
+  if (![[self selectedCells] containsObject:[self cellAtRow:row column:column]])
+    {
+      [self deselectAllCells];
+      [self selectCellAtRow:row column:column];
+      [self sendAction:[self action] to:[self target]];
+    }
+  id owner = [[self window] delegate];
+  return [owner isKindOfClass:[FVWindow class]] ? [owner itemMenu] : nil;
 }
 
 - (void)renameAfterSlowClick:(id)cell
@@ -2700,6 +2750,49 @@ FVClickStayedPut (NSEvent *down)
     [self addFavorites:candidates atIndex:NSNotFound];
 }
 
+/* File → Add to Dock asks the Dock to keep the selected apps, in order, at
+   the end of its kept apps, as if they were dropped there. The Dock owns
+   its list, so Workspace doesn't write the Dock's defaults. */
+- (void)addToDock:(id)sender
+{
+  NSArray *bundles = FVApplicationBundles ([self selectedPaths]);
+  if (![bundles count])
+    return;
+  [[NSDistributedNotificationCenter defaultCenter]
+      postNotificationName:FVDockKeepApplicationsNotification
+                    object:nil
+                  userInfo:[NSDictionary dictionaryWithObject:bundles forKey:@"paths"]
+        deliverImmediately:YES];
+}
+
+- (NSMenu *)itemMenu
+{
+  if (![[self selectedPaths] count])
+    return nil;
+  NSMenu *menu = AUTORELEASE ([[NSMenu alloc] initWithTitle:@"File"]);
+  /* No separators: GNUstep draws them as empty items, and Workspace's other
+     menus have none. */
+  NSArray *titles = [NSArray arrayWithObjects:@"Open", @"Open With…", @"Show Package Contents",
+                                              @"Get Info", @"Rename", @"Add to Dock",
+                                              @"Add to Favorites", @"Copy", @"Duplicate",
+                                              @"Move to Trash", nil];
+  NSArray *actions = [NSArray arrayWithObjects:@"open:", @"openWith:", @"packageContents:",
+                                               @"info:", @"rename:", @"addToDock:",
+                                               @"addFavorite:", @"copy:", @"duplicate:",
+                                               @"trash:", nil];
+  NSUInteger i;
+  for (i = 0; i < [titles count]; i++)
+    {
+      NSMenuItem *item = AUTORELEASE ([[NSMenuItem alloc]
+          initWithTitle:[titles objectAtIndex:i]
+                 action:NSSelectorFromString ([actions objectAtIndex:i])
+          keyEquivalent:@""]);
+      [item setTarget:self];
+      [menu addItem:item];
+    }
+  return menu;
+}
+
 - (void)removeFavorite:(id)sender
 {
   NSMutableArray *favorites = FVFavoritePaths ();
@@ -3529,6 +3622,8 @@ FVClickStayedPut (NSEvent *down)
     return NO;
   if (action == @selector (addFavorite:))
     return [[self favoriteCandidates] count] > 0;
+  if (action == @selector (addToDock:))
+    return [FVApplicationBundles ([self selectedPaths]) count] > 0;
   if (action == @selector (toggleHidden:))
     [item setState:hidden ? NSOnState : NSOffState];
   if (action == @selector (toggleFolders:))
