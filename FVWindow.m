@@ -2542,14 +2542,47 @@ FVClickStayedPut (NSEvent *down)
   [self runOperation:@"duplicate" paths:[self selectedPaths] destination:path];
 }
 
+/* Move To… picks the destination with a folder chooser that starts in the
+   folder holding the selection. */
 - (void)moveTo:(id)sender
 {
-  NSString *value = FVPrompt (self, @"Move To", @"Move the selected items to this folder:",
-                             [path isEqual:FVRecentsLocation] ? NSHomeDirectory () : path);
-  if (value)
-    [self runOperation:@"move"
-                 paths:[self selectedPaths]
-           destination:[value stringByExpandingTildeInPath]];
+  NSArray *selected = [self selectedPaths];
+  if (![selected count] || operation)
+    return;
+  [self endEditingName:YES];
+  NSOpenPanel *chooser = [NSOpenPanel openPanel];
+  [chooser setTitle:@"Move To"];
+  /* GNUstep's prompt labels the path field; name the OK button "Move". */
+  [chooser setNameFieldLabel:@"Folder:"];
+  @try
+    {
+      [[chooser valueForKey:@"_okButton"] setTitle:@"Move"];
+    }
+  @catch (NSException *exception)
+    {
+    }
+  [chooser setCanChooseDirectories:YES];
+  [chooser setCanChooseFiles:NO];
+  [chooser setAllowsMultipleSelection:NO];
+  [chooser setCanCreateDirectories:YES];
+  waitingForInput = YES;
+  [self updateActivity];
+  [activityStatus displayIfNeeded];
+  NSInteger result;
+  @try
+    {
+      result = [chooser runModalForDirectory:[[selected objectAtIndex:0]
+                                                 stringByDeletingLastPathComponent]
+                                        file:nil
+                                       types:nil];
+    }
+  @finally
+    {
+      waitingForInput = NO;
+      [self updateActivity];
+    }
+  if (result == NSOKButton && [chooser filename])
+    [self runOperation:@"move" paths:selected destination:[chooser filename]];
 }
 
 - (void)trash:(id)sender
