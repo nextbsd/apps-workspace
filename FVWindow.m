@@ -813,17 +813,6 @@ static NSString *const FVGoRecentsKey = @"GoToFolderRecents";
 
 @end
 
-static NSString *
-FVPrompt (FVWindow *owner, NSString *title, NSString *message, NSString *value)
-{
-  FVDialog *dialog = AUTORELEASE (([[FVDialog alloc]
-      initWithTitle:title
-            message:message
-              value:value ? value : @""
-            buttons:[NSArray arrayWithObjects:@"OK", @"Cancel", nil]]));
-  return [owner runDialog:dialog] == 0 ? [dialog value] : nil;
-}
-
 NSInteger
 FVRunAlert (NSString *title, NSString *heading, NSString *message, NSString *defaultButton,
             NSString *alternateButton)
@@ -1308,12 +1297,28 @@ FVClickStayedPut (NSEvent *down)
       FVToolbarButton (bar, @"List", @selector (listMode:), self, 204, 5);
       FVToolbarButton (bar, @"Columns", @selector (columnMode:), self, 242, 6);
       FVToolbarButton (bar, @"Icons", @selector (iconMode:), self, 280, 7);
+      /* One search field: it filters this folder, or with Subfolders chosen
+         searches beneath it by name. */
       filter = [[NSSearchField alloc]
-          initWithFrame:NSMakeRect (332, 2, contentSize.width - 358, 26)];
+          initWithFrame:NSMakeRect (332, 2, contentSize.width - 358 - 132, 26)];
       [filter setAutoresizingMask:NSViewWidthSizable];
       [filter setTarget:self];
       [filter setAction:@selector (filterChanged:)];
+      [filter setDelegate:self];
+      [[filter cell] setPlaceholderString:@"Search"];
+      [filter setToolTip:@"Type part of a name. Escape clears the search."];
       [bar addSubview:filter];
+      searchScope = [[NSPopUpButton alloc]
+          initWithFrame:NSMakeRect (contentSize.width - 16 - 128, 2, 120, 26)
+                  pullsDown:NO];
+      [searchScope addItemWithTitle:@"This Folder"];
+      [searchScope addItemWithTitle:@"Subfolders"];
+      [searchScope setToolTip:@"Search only this folder, or this folder and all its subfolders"];
+      [searchScope setAutoresizingMask:NSViewMinXMargin];
+      [searchScope setTarget:self];
+      [searchScope setAction:@selector (filterChanged:)];
+      [bar addSubview:searchScope];
+      modeBeforeSearch = -1;
       breadcrumbs = [[NSPopUpButton alloc]
           initWithFrame:NSMakeRect (180, contentSize.height - 78, contentSize.width - 190, 30)
                                                pullsDown:NO];
@@ -1369,6 +1374,15 @@ FVClickStayedPut (NSEvent *down)
             }
           [table addTableColumn:column];
         }
+      /* Shown only with search results: the folder each one is in. */
+      locationColumn = [[NSTableColumn alloc] initWithIdentifier:@"location"];
+      [[locationColumn headerCell] setStringValue:@"Location"];
+      [locationColumn setWidth:260];
+      [locationColumn setEditable:NO];
+      [[locationColumn dataCell] setEditable:NO];
+      [[locationColumn dataCell] setSelectable:NO];
+      [[locationColumn dataCell] setBordered:NO];
+      [[locationColumn dataCell] setLineBreakMode:NSLineBreakByTruncatingHead];
       [scroll setDocumentView:table];
       [host addSubview:scroll];
       NSScrollView *sideScroll =
@@ -1600,10 +1614,16 @@ FVClickStayedPut (NSEvent *down)
       RELEASE (revealPath);
       revealPath = nil;
     }
+  if (searching && ![value isEqual:path])
+    {
+      [filter setStringValue:@""];
+      [self showSearchResults:NO];
+    }
   NSString *newPath = [value copy];
   RELEASE (path);
   path = newPath;
   searching = NO;
+  [searchScope setEnabled:!recents];
   [browserRows removeAllObjects];
   [[NSUserDefaults standardUserDefaults] setObject:path forKey:@"LastPath"];
   /* Every viewer is titled File Viewer, as on NeXTSTEP; the path bar shows where it is. */
@@ -1755,7 +1775,20 @@ FVClickStayedPut (NSEvent *down)
     objectValueForTableColumn:(NSTableColumn *)column
                           row:(NSInteger)row
 {
-  return [[items objectAtIndex:row] valueForColumn:[column identifier]];
+  FVItem *item = [items objectAtIndex:row];
+  if ([[column identifier] isEqual:@"location"])
+    {
+      /* Relative to the search root, which is named first: "t/dest/Project". */
+      NSString *folder = [[item path] stringByDeletingLastPathComponent];
+      NSString *root = [path isEqual:@"/"] ? @"" : path;
+      if ([folder isEqual:path])
+        return [path lastPathComponent];
+      if ([folder hasPrefix:[root stringByAppendingString:@"/"]])
+        return [[path lastPathComponent]
+            stringByAppendingPathComponent:[folder substringFromIndex:[root length] + 1]];
+      return folder;
+    }
+  return [item valueForColumn:[column identifier]];
 }
 
 - (NSInteger)outlineView:(NSOutlineView *)sender numberOfChildrenOfItem:(id)item
@@ -2059,13 +2092,47 @@ FVClickStayedPut (NSEvent *down)
     }
 }
 
+/* The search field filters this folder by name, or with Subfolders chosen
+   searches beneath it, showing results in the list with their location. */
 - (void)filterChanged:(id)sender
 {
-  NSInteger pathColumn = [table columnWithIdentifier:@"path"];
-  if (pathColumn >= 0 && ![path isEqual:FVRecentsLocation])
-    [table moveColumn:pathColumn toColumn:[[table tableColumns] count] - 1];
-  searching = NO;
+  BOOL deep = [searchScope indexOfSelectedItem] == 1 && [[filter stringValue] length]
+              && ![path isEqual:FVRecentsLocation];
+  [self showSearchResults:deep];
   [self refresh:nil];
+}
+
+- (void)showSearchResults:(BOOL)deep
+{
+  searching = deep;
+  BOOL shown = [[table tableColumns] containsObject:locationColumn];
+  if (deep && !shown)
+    {
+      [table addTableColumn:locationColumn];
+      [table moveColumn:[table columnWithIdentifier:@"location"] toColumn:1];
+      if (mode != 0)
+        {
+          modeBeforeSearch = mode;
+          [self listMode:nil];
+          [[self window] makeFirstResponder:filter];
+        }
+    }
+  else if (!deep && shown)
+    {
+      [table removeTableColumn:locationColumn];
+      if (modeBeforeSearch == 1)
+        [self columnMode:nil];
+      else if (modeBeforeSearch == 2)
+        [self iconMode:nil];
+      modeBeforeSearch = -1;
+    }
+}
+
+/* Escape in the search field clears it and returns to the folder. */
+- (void)clearSearch
+{
+  [filter setStringValue:@""];
+  [self filterChanged:filter];
 }
 
 - (void)toggleHidden:(id)sender
@@ -2525,6 +2592,17 @@ FVClickStayedPut (NSEvent *down)
                textView:(NSTextView *)textView
     doCommandBySelector:(SEL)command
 {
+  if (control == filter)
+    {
+      if ((sel_isEqual (command, @selector (cancelOperation:))
+           || sel_isEqual (command, @selector (complete:)))
+          && [[filter stringValue] length])
+        {
+          [self clearSearch];
+          return YES;
+        }
+      return NO;
+    }
   if (control != nameEditor || !editingPath)
     return NO;
   /* Compare by name: libobjc2 selectors can carry differing type encodings. */
@@ -3305,22 +3383,14 @@ FVClickStayedPut (NSEvent *down)
   [self selectionChanged];
 }
 
+/* View → Search (Command-F) puts the cursor in the search field. */
 - (void)search:(id)sender
 {
   if ([path isEqual:FVRecentsLocation])
     return;
-  NSString *query
-      = FVPrompt (self, @"Recursive Filename Search",
-                  @"Find items in this folder and its subfolders whose names contain:",
-                  [filter stringValue]);
-  if (query)
-    {
-      [filter setStringValue:query];
-      [table moveColumn:[table columnWithIdentifier:@"path"] toColumn:1];
-      searching = YES;
-      [self listMode:nil];
-      [self refresh:nil];
-    }
+  [self endEditingName:YES];
+  [[self window] makeFirstResponder:filter];
+  [filter selectText:nil];
 }
 
 /* Scan metadata off the UI thread, including every expanded browser folder. */
@@ -3517,6 +3587,8 @@ FVClickStayedPut (NSEvent *down)
   RELEASE (sidebar);
   RELEASE (places);
   RELEASE (filter);
+  RELEASE (searchScope);
+  RELEASE (locationColumn);
   RELEASE (status);
   RELEASE (activityStatus);
   RELEASE (operationActivity);

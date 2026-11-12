@@ -138,7 +138,7 @@ FVMigrateFileViewerDefaults (void)
   FVMenu (menu, @"View",
           [NSArray arrayWithObjects:@"List", @"Columns", @"Icons", @"Larger Icons",
                                     @"Smaller Icons", @"Show Hidden Files", @"Folders First",
-                                    @"Refresh", @"Recursive Filename Search", nil],
+                                    @"Refresh", @"Search", nil],
           [NSArray arrayWithObjects:@"listMode:", @"columnMode:", @"iconMode:", @"largerIcons:",
                                     @"smallerIcons:", @"toggleHidden:", @"toggleFolders:",
                                     @"refresh:", @"search:", nil],

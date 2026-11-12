@@ -41,6 +41,9 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
   NSMutableDictionary *placeIcons;
   NSSet *mountedVolumePaths;
   NSSearchField *filter;
+  NSPopUpButton *searchScope;
+  NSTableColumn *locationColumn;
+  NSInteger modeBeforeSearch;
   NSTextField *status;
   NSTextField *activityStatus;
   NSString *operationActivity;

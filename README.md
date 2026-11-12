@@ -159,14 +159,18 @@ Inspected development environment:
   selects every item. Icons also support Shift-arrow range selection, keyboard
   navigation, double-click, and View → Larger/Smaller Icons. All views use the
   same operations and directory items; selections persist between list/icons.
-- Filter matches filenames in the current directory. View → Recursive Filename
-  Search is separate, shows its root in the path control, puts result paths next
-  to names, reports permission failures, and delivers incremental batches. It
-  never searches contents and never recurses through symbolic links.
+- The search field in the toolbar finds items by name. With This Folder chosen
+  beside it, it filters the current folder; with Subfolders it searches beneath
+  the folder and shows the results in the list with a Location column (the
+  window returns to icons or columns afterwards). View → Search (Command-F)
+  puts the cursor in the field; Escape, clearing the field or opening another
+  folder returns to the folder. Search reports permission failures, delivers
+  incremental batches, never searches contents and never recurses through
+  symbolic links.
 - Open folders update automatically through one-second background polling,
   including expanded browser columns. Added, removed, renamed and modified files
   refresh the view, preserving selection and list/icon scroll position where
-  possible. Recursive search results require Refresh.
+  possible. Search results beneath a folder require Refresh.
 - Favorites, hidden-file preference, folders-first preference, last directory,
   view mode and window frame use application-local NSUserDefaults. Key equivalents
   use GNUstep's native modifier mapping (often Alt on Unix), not a hard-coded

@@ -28,7 +28,7 @@ user files for delete, replacement, Trash or recovery tests.
       confirm the selected paths match the rightmost selected column.
 - [ ] Switch list/icons with multiple selections. Resize icons/window, scroll,
       navigate with arrows and Shift, double-click, and inspect clipped names.
-- [ ] Filter filenames. Run recursive filename search, verify full paths and
+- [ ] Filter filenames. Search Subfolders from the search field, verify locations and
       visible root, hidden-file policy and permission errors; cancel mid-search.
 - [ ] Refresh after modifying a file; add/remove an entry externally and verify
       polling picks it up. Refresh while selected and scrolled down.
