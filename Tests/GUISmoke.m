@@ -65,12 +65,17 @@ CheckLayout (FVWindow *controller)
   NSView *bar = [[controller valueForKey:@"filter"] superview];
   NSArray *views = [content subviews];
   NSUInteger i;
+  /* A narrow window hides the sidebar, the view buttons and the search
+     scope (-fitToWidth): what shows must fit. */
   for (i = 0; i < [views count]; i++)
-    CHECK (NSContainsRect ([content bounds], [[views objectAtIndex:i] frame]));
+    if (![[views objectAtIndex:i] isHidden])
+      CHECK (NSContainsRect ([content bounds], [[views objectAtIndex:i] frame]));
   CHECK (NSMaxY ([bar frame]) <= NSMaxY ([content bounds]) - 8);
   views = [bar subviews];
   for (i = 0; i < [views count]; i++)
-    CHECK (NSContainsRect ([bar bounds], [[views objectAtIndex:i] frame]));
+    if (![[views objectAtIndex:i] isHidden])
+      CHECK (NSContainsRect ([bar bounds], [[views objectAtIndex:i] frame]));
+  CHECK (NSWidth ([[controller valueForKey:@"filter"] frame]) >= 60);
   CHECK (NSMaxY ([[controller valueForKey:@"breadcrumbs"] frame]) <= NSMinY ([bar frame]));
   NSTextField *activity = [controller valueForKey:@"activityStatus"];
   CHECK (![activity isBordered]);

@@ -403,7 +403,7 @@ FVToolbarImage (NSUInteger kind)
   return image;
 }
 
-static void
+static NSButton *
 FVToolbarButton (NSView *view, NSString *title, SEL action, id target,
                  CGFloat x, NSUInteger kind)
 {
@@ -412,6 +412,7 @@ FVToolbarButton (NSView *view, NSString *title, SEL action, id target,
   [button setImagePosition:NSImageOnly];
   [button setBordered:NO];
   [button setToolTip:title];
+  return button;
 }
 
 static NSInteger
@@ -1169,7 +1170,10 @@ FVClickStayedPut (NSEvent *down)
   if (self)
     {
       [window setDelegate:self];
-      [window setMinSize:NSMakeSize (760, 400)];
+      /* Small enough for a quarter of the screen when tiled: the window
+         drops the sidebar, the view buttons and the search scope as it
+         narrows (-fitToWidth). */
+      [window setMinSize:NSMakeSize (320, 240)];
       [window setFrameAutosaveName:@"File Viewer"];
       cutChangeCount = -1;
       items = [[NSMutableArray alloc] init];
@@ -1201,8 +1205,8 @@ FVClickStayedPut (NSEvent *down)
       NSView *content = [window contentView];
       /* Autosave restoration may have changed the content size already. */
       NSSize contentSize = [content bounds].size;
-      NSView *bar = AUTORELEASE ([[NSView alloc]
-          initWithFrame:NSMakeRect (8, contentSize.height - 40, contentSize.width - 16, 32)]);
+      NSView *bar = toolbar = [[NSView alloc]
+          initWithFrame:NSMakeRect (8, contentSize.height - 40, contentSize.width - 16, 32)];
       [bar setAutoresizingMask:NSViewWidthSizable | NSViewMinYMargin];
       [content addSubview:bar];
       FVToolbarButton (bar, @"Back", @selector (back:), self, 0, 0);
@@ -1210,9 +1214,10 @@ FVClickStayedPut (NSEvent *down)
       FVToolbarButton (bar, @"Up", @selector (parent:), self, 76, 2);
       FVToolbarButton (bar, @"Home", @selector (home:), self, 114, 3);
       FVToolbarButton (bar, @"Refresh", @selector (refresh:), self, 152, 4);
-      FVToolbarButton (bar, @"List", @selector (listMode:), self, 204, 5);
-      FVToolbarButton (bar, @"Columns", @selector (columnMode:), self, 242, 6);
-      FVToolbarButton (bar, @"Icons", @selector (iconMode:), self, 280, 7);
+      modeButtons = [[NSArray alloc] initWithObjects:
+          FVToolbarButton (bar, @"List", @selector (listMode:), self, 204, 5),
+          FVToolbarButton (bar, @"Columns", @selector (columnMode:), self, 242, 6),
+          FVToolbarButton (bar, @"Icons", @selector (iconMode:), self, 280, 7), nil];
       /* One search field: it filters this folder, or with Subfolders chosen
          searches beneath it by name. */
       filter = [[NSSearchField alloc]
@@ -1301,9 +1306,8 @@ FVClickStayedPut (NSEvent *down)
       [[locationColumn dataCell] setLineBreakMode:NSLineBreakByTruncatingHead];
       [scroll setDocumentView:table];
       [host addSubview:scroll];
-      NSScrollView *sideScroll =
-          AUTORELEASE ([[NSScrollView alloc]
-              initWithFrame:NSMakeRect (8, 34, 164, contentSize.height - 82)]);
+      sideScroll = [[NSScrollView alloc]
+          initWithFrame:NSMakeRect (8, 34, 164, contentSize.height - 82)];
       [sideScroll setAutoresizingMask:NSViewHeightSizable];
       [sideScroll setHasVerticalScroller:YES];
       sidebar = [[FVSidebarView alloc] initWithFrame:[sideScroll bounds]];
@@ -1344,6 +1348,7 @@ FVClickStayedPut (NSEvent *down)
           selector:@selector (appearancePreferencesChanged:) name:@"FVAppearancePreferencesChanged"
           object:nil];
       [self appearancePreferencesChanged:nil];
+      [self fitToWidth];
       [self rebuildPlaces];
       [self navigate:value];
       NSInteger savedMode = [[NSUserDefaults standardUserDefaults] integerForKey:@"ViewMode"];
@@ -2196,6 +2201,63 @@ FVClickStayedPut (NSEvent *down)
       hidden = show;
       [self refresh:nil];
     }
+}
+
+/* Lay the window out across its width. Narrow (a tile beside another
+   window): the sidebar goes below 600 points, the search scope below
+   640 and the view buttons below 460 (the View menu still has them), so
+   the folder and the search field keep their room. */
+- (void)fitToWidth
+{
+  NSRect bounds = [[[self window] contentView] bounds];
+  CGFloat width = NSWidth (bounds);
+  BOOL showSidebar = width >= 600, showScope = width >= 640, showModes = width >= 460;
+  CGFloat left = showSidebar ? 180 : 8;
+  CGFloat barWidth = MAX (width - 16, 1);
+  NSRect r;
+
+  r = [toolbar frame];
+  r.origin.x = 8;
+  r.size.width = barWidth;
+  [toolbar setFrame:r];
+  NSEnumerator *e = [modeButtons objectEnumerator];
+  NSButton *button;
+  while ((button = [e nextObject]))
+    [button setHidden:!showModes];
+  [searchScope setHidden:!showScope];
+  r = [searchScope frame];
+  r.origin.x = barWidth - 128;
+  [searchScope setFrame:r];
+  r = [filter frame];
+  r.origin.x = showModes ? 332 : 204;
+  r.size.width = MAX ((showScope ? barWidth - 136 : barWidth) - NSMinX (r), 60);
+  [filter setFrame:r];
+
+  [sideScroll setHidden:!showSidebar];
+  r = [breadcrumbs frame];
+  r.origin.x = left;
+  r.size.width = MAX (width - left - 10, 1);
+  [breadcrumbs setFrame:r];
+  r = [host frame];
+  r.origin.x = left;
+  r.size.width = MAX (width - left - 10, 1);
+  [host setFrame:r];
+
+  CGFloat activityWidth = MIN (230, floor (width / 3));
+  r = [activityStatus frame];
+  r.origin.x = width - 10 - activityWidth;
+  r.size.width = activityWidth;
+  [activityStatus setFrame:r];
+  r = [status frame];
+  r.origin.x = 10;
+  r.size.width = MAX (width - 30 - activityWidth, 1);
+  [status setFrame:r];
+  [[[self window] contentView] setNeedsDisplay:YES];
+}
+
+- (void)windowDidResize:(NSNotification *)note
+{
+  [self fitToWidth];
 }
 
 - (void)windowDidBecomeKey:(NSNotification *)note
@@ -3686,6 +3748,9 @@ FVClickStayedPut (NSEvent *down)
   RELEASE (breadcrumbs);
   RELEASE (scroll);
   RELEASE (host);
+  RELEASE (toolbar);
+  RELEASE (sideScroll);
+  RELEASE (modeButtons);
   RELEASE (browser);
   RELEASE (icons);
   RELEASE (browserRows);

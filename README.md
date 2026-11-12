@@ -413,7 +413,10 @@ filtering, navigation and file-action restrictions.
 - Long-running OS calls cannot always be interrupted immediately. Final sorting
   is on the UI thread; enormous directories/search result sets can still pause
   while sorting and consume memory proportional to the number of results.
-- The fixed minimum window size is 760×400. Theme fonts are used, but very large
+- The minimum window size is 320×240, small enough for a quarter of the screen
+  when windows tile; below 600 points wide the sidebar is hidden, below 640 the
+  search scope and below 460 the view buttons (the View menu still has them).
+  Theme fonts are used, but very large
   accessibility fonts and mixed-DPI displays have not been exhaustively tested.
 - Real removable-volume disconnects, disk-full faults, real cross-device mounts,
   external-app drag sessions and launching arbitrary associated applications
