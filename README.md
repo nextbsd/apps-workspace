@@ -25,9 +25,10 @@ Prerequisites: GNUstep Make, Base and GUI development headers/libraries, an
 installed GUI backend, an Objective-C compiler, libmount development headers
 (`libmount-dev` on Debian), X11 and Xext development libraries
 (`libx11-dev` and `libxext-dev`), and an X display. This version's
-filesystem adapter targets Linux (`renameat2`, `O_NOFOLLOW`, `/proc/self/fd`, and
-POSIX stat timestamps). Other Unix systems need an equivalent platform adapter;
-unsupported atomic rename fails rather than falling back to overwriting rename.
+filesystem adapter targets NextBSD and Linux (`renameat2` with `RENAME_NOREPLACE`,
+the `openat`/`fstatat`/`unlinkat` family with `O_NOFOLLOW`, and POSIX stat
+timestamps). Other Unix systems need an equivalent platform adapter; unsupported
+atomic rename fails rather than falling back to overwriting rename.
 
 Movie thumbnails use optional `ffmpegthumbnailer` with embedded-artwork preference
 (`-m`), falling back to a video frame when artwork is absent. If the thumbnailer
@@ -190,7 +191,9 @@ Only one operation runs per window; other windows remain independent.
   bounded I/O buffers, cancellation checks, regular-file `fsync`, permission and
   timestamp restoration, and before/after source metadata checks. Symbolic links
   remain links; special devices, sockets and FIFOs are refused. Directory reads
-  pin open descriptors and do not traverse source symlinks. Unrepresentable names
+  pin open descriptors: each entry is opened, checked and removed relative to its
+  already-open parent with the `*at` calls, so a folder renamed or replaced
+  mid-copy cannot redirect the walk, and source symlinks are never traversed. Unrepresentable names
   are reported rather than silently omitted.
 - On `EXDEV`, the move copies first. It then atomically detaches the source into
   a private recovery directory, verifies the copied tree's source identity and
@@ -285,7 +288,7 @@ filtering, navigation and file-action restrictions.
 
 ## Remaining limitations
 
-- Linux-specific filesystem adapter; other Unix systems are not tested.
+- Filesystem adapter tested on NextBSD and Linux only; other Unix systems are not tested.
 - No content search, live preview pane, directory merging or per-volume Trash.
 - Polling instead of inotify; large or remote directories can take longer to
   update. Selection of descendants is not translated into a different view's root list.

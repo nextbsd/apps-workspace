@@ -90,30 +90,53 @@ FVSameStat (struct stat a, struct stat b)
          && a.st_ctim.tv_sec == b.st_ctim.tv_sec && a.st_ctim.tv_nsec == b.st_ctim.tv_nsec;
 }
 
+/* Open the folder holding a top-level item. Everything below it is reached
+   relative to an already-open descriptor, never by pathname again. */
+static int
+FVOpenParent (NSString *path)
+{
+  return open ([[path stringByDeletingLastPathComponent] fileSystemRepresentation],
+               O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+}
+
+static NSString *
+FVEntryName (const char *bytes)
+{
+  NSString *name =
+      [[NSFileManager defaultManager] stringWithFileSystemRepresentation:bytes
+                                                                  length:strlen (bytes)];
+  if (!name || strcmp ([name fileSystemRepresentation], bytes))
+    return nil;
+  return name;
+}
+
 /* Recursive copier never follows a source link. Every destination is exclusive.
-   The staging directory is private. Special files are rejected, not opened. */
+   The staging directory is private. Special files are rejected, not opened.
+   Each entry is named relative to its opened parent (openat/fstatat with
+   O_NOFOLLOW/AT_SYMLINK_NOFOLLOW), so a folder renamed or replaced during the
+   copy cannot redirect it. src and dst are only used in messages. */
 static BOOL
-FVCopy (NSString *src, NSString *dst, FVOperations *job, NSMutableDictionary *manifest,
-        NSMutableSet *ancestors, NSString *relative, NSError **error)
+FVCopyAt (int srcDir, const char *s, NSString *src, int dstDir, const char *d, NSString *dst,
+          FVOperations *job, NSMutableDictionary *manifest, NSMutableSet *ancestors,
+          NSString *relative, NSError **error)
 {
   if ([job cancelled])
     return FVError (error, @"Cancelled; source retained.");
   struct stat before, after;
-  const char *s = [src fileSystemRepresentation], *d = [dst fileSystemRepresentation];
-  if (lstat (s, &before))
+  if (fstatat (srcDir, s, &before, AT_SYMLINK_NOFOLLOW))
     return FVError (error, [NSString stringWithFormat:@"%@: %s", src, strerror (errno)]);
   if (S_ISLNK (before.st_mode))
     {
       size_t capacity = before.st_size + 4096;
       char *buffer = malloc (capacity);
-      ssize_t size = readlink (s, buffer, capacity - 1);
+      ssize_t size = readlinkat (srcDir, s, buffer, capacity - 1);
       if (size < 0 || (size_t)size >= capacity - 1)
         {
           free (buffer);
           return FVError (error, @"Cannot read complete symbolic link");
         }
       buffer[size] = 0;
-      int result = symlink (buffer, d);
+      int result = symlinkat (buffer, dstDir, d);
       free (buffer);
       if (result)
         return FVError (error,
@@ -121,7 +144,7 @@ FVCopy (NSString *src, NSString *dst, FVOperations *job, NSMutableDictionary *ma
     }
   else if (S_ISREG (before.st_mode))
     {
-      int input = open (s, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+      int input = openat (srcDir, s, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
       if (input < 0)
         return FVError (error,
                         [NSString stringWithFormat:@"Cannot read %@: %s", src, strerror (errno)]);
@@ -131,7 +154,7 @@ FVCopy (NSString *src, NSString *dst, FVOperations *job, NSMutableDictionary *ma
           close (input);
           return FVError (error, @"Source changed before opening");
         }
-      int output = open (d, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+      int output = openat (dstDir, d, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
       if (output < 0)
         {
           close (input);
@@ -202,7 +225,7 @@ FVCopy (NSString *src, NSString *dst, FVOperations *job, NSMutableDictionary *ma
       if ([ancestors containsObject:identity])
         return FVError (error, @"Recursive directory cycle detected; source retained");
       [ancestors addObject:identity];
-      int fd = open (s, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+      int fd = openat (srcDir, s, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
       if (fd < 0)
         return FVError (error, [NSString stringWithFormat:@"Cannot read directory %@: %s", src,
                                                           strerror (errno)]);
@@ -218,10 +241,16 @@ FVCopy (NSString *src, NSString *dst, FVOperations *job, NSMutableDictionary *ma
           close (fd);
           return FVError (error, @"Cannot enumerate directory");
         }
-      if (mkdir (d, 0700))
+      if (mkdirat (dstDir, d, 0700))
         {
           closedir (dir);
           return FVError (error, @"Cannot create destination directory");
+        }
+      int out = openat (dstDir, d, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+      if (out < 0)
+        {
+          closedir (dir);
+          return FVError (error, @"Cannot open destination directory");
         }
       struct dirent *entry;
       BOOL ok = YES;
@@ -230,18 +259,15 @@ FVCopy (NSString *src, NSString *dst, FVOperations *job, NSMutableDictionary *ma
         {
           if (!strcmp (entry->d_name, ".") || !strcmp (entry->d_name, ".."))
             continue;
-          NSString *name = [[NSFileManager defaultManager]
-              stringWithFileSystemRepresentation:entry->d_name
-                                          length:strlen (entry->d_name)];
-          if (!name || strcmp ([name fileSystemRepresentation], entry -> d_name))
+          NSString *name = FVEntryName (entry->d_name);
+          if (!name)
             {
               ok = FVError (error, @"Unrepresentable filename; source retained");
               break;
             }
-          /* /proc/self/fd pins the opened source directory on Linux. */
-          NSString *child = [NSString stringWithFormat:@"/proc/self/fd/%d/%@", fd, name];
-          if (!FVCopy (child, [dst stringByAppendingPathComponent:name], job, manifest, ancestors,
-                       [relative stringByAppendingPathComponent:name], error))
+          if (!FVCopyAt (fd, entry->d_name, [src stringByAppendingPathComponent:name], out,
+                         entry->d_name, [dst stringByAppendingPathComponent:name], job, manifest,
+                         ancestors, [relative stringByAppendingPathComponent:name], error))
             {
               ok = NO;
               break;
@@ -253,15 +279,16 @@ FVCopy (NSString *src, NSString *dst, FVOperations *job, NSMutableDictionary *ma
       if (ok && (fstat (fd, &after) || !FVSameStat (before, after)))
         ok = FVError (error, @"Directory changed while copying; source retained");
       closedir (dir);
+      struct timespec times[2] = { before.st_atim, before.st_mtim };
+      if (ok && (fchmod (out, before.st_mode & 0777) || futimens (out, times)))
+        ok = FVError (error, @"Cannot preserve directory metadata");
+      close (out);
       if (!ok)
         return NO;
-      struct timespec times[2] = { before.st_atim, before.st_mtim };
-      if (chmod (d, before.st_mode & 0777) || utimensat (AT_FDCWD, d, times, AT_SYMLINK_NOFOLLOW))
-        return FVError (error, @"Cannot preserve directory metadata");
     }
   else
     return FVError (error, @"Sockets, devices and FIFOs are not copied");
-  if (lstat (s, &after) || !FVSameStat (before, after))
+  if (fstatat (srcDir, s, &after, AT_SYMLINK_NOFOLLOW) || !FVSameStat (before, after))
     return FVError (error, @"Source changed during copy; source retained");
   if (S_ISDIR (before.st_mode))
     [ancestors
@@ -271,19 +298,56 @@ FVCopy (NSString *src, NSString *dst, FVOperations *job, NSMutableDictionary *ma
   return YES;
 }
 
-/* Verify again after atomically detaching the source into a private directory.
-   Only its root ctime changes because of that rename. */
 static BOOL
-FVSnapshotMatches (NSString *path, NSDictionary *manifest, NSString *relative)
+FVCopy (NSString *src, NSString *dst, FVOperations *job, NSMutableDictionary *manifest,
+        NSMutableSet *ancestors, NSString *relative, NSError **error)
+{
+  int srcDir = FVOpenParent (src);
+  if (srcDir < 0)
+    return FVError (error, [NSString stringWithFormat:@"%@: %s", src, strerror (errno)]);
+  int dstDir = FVOpenParent (dst);
+  if (dstDir < 0)
+    {
+      close (srcDir);
+      return FVError (error, @"Cannot open private staging directory");
+    }
+  BOOL ok = FVCopyAt (srcDir, [[src lastPathComponent] fileSystemRepresentation], src, dstDir,
+                      [[dst lastPathComponent] fileSystemRepresentation], dst, job, manifest,
+                      ancestors, relative, error);
+  close (srcDir);
+  close (dstDir);
+  return ok;
+}
+
+static BOOL
+FVSnapshotMatchesStat (struct stat actual, NSDictionary *manifest, NSString *relative)
 {
   NSData *record = [manifest objectForKey:relative];
-  struct stat expected, actual;
-  if ([record length] != sizeof (expected) || lstat ([path fileSystemRepresentation], &actual))
+  struct stat expected;
+  if ([record length] != sizeof (expected))
     return NO;
   [record getBytes:&expected length:sizeof (expected)];
   if (![relative length])
-    expected.st_ctim = actual.st_ctim;
+    {
+      expected.st_ctim = actual.st_ctim;
+      /* UFS rewrites a moved folder's ".." entry, which also sets its mtime.
+         Its entries are still checked one by one, and removal stops at any
+         entry that is not in the manifest. */
+      if (S_ISDIR (actual.st_mode))
+        expected.st_mtim = actual.st_mtim;
+    }
   return FVSameStat (expected, actual) && expected.st_mode == actual.st_mode;
+}
+
+/* Verify again after atomically detaching the source into a private directory.
+   Only its root ctime (and, for a folder, mtime) changes because of that rename. */
+static BOOL
+FVSnapshotMatches (NSString *path, NSDictionary *manifest, NSString *relative)
+{
+  struct stat actual;
+  if (lstat ([path fileSystemRepresentation], &actual))
+    return NO;
+  return FVSnapshotMatchesStat (actual, manifest, relative);
 }
 
 static BOOL
@@ -302,26 +366,35 @@ FVVerifyTree (NSString *root, NSDictionary *manifest, FVOperations *job)
 
 /* Deletion is deliberately not transactional. Check each entry again and never
    follow links. New or changed entries stop removal; the private recovery path
-   is returned to the user. The destination is already fully copied and synced. */
+   is returned to the user. The destination is already fully copied and synced.
+   Entries are named relative to their opened parent and removed with unlinkat. */
 static BOOL
-FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FVOperations *job)
+FVRemoveVerifiedAt (int parent, const char *name, NSDictionary *manifest, NSString *relative,
+                    FVOperations *job)
 {
-  if ([job cancelled] || !FVSnapshotMatches (path, manifest, relative))
-    return NO;
   struct stat st;
-  if (lstat ([path fileSystemRepresentation], &st))
+  if ([job cancelled] || fstatat (parent, name, &st, AT_SYMLINK_NOFOLLOW)
+      || !FVSnapshotMatchesStat (st, manifest, relative))
     return NO;
   if (!S_ISDIR (st.st_mode))
-    return unlink ([path fileSystemRepresentation]) == 0;
-  int fd = open ([path fileSystemRepresentation], O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    return unlinkat (parent, name, 0) == 0;
+  int fd = openat (parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
   if (fd < 0)
     return NO;
+  struct stat opened;
+  if (fstat (fd, &opened) || opened.st_dev != st.st_dev || opened.st_ino != st.st_ino)
+    {
+      close (fd);
+      return NO;
+    }
   DIR *dir = fdopendir (fd);
   if (!dir)
     {
       close (fd);
       return NO;
     }
+  /* Read the whole folder before removing anything from it. */
+  NSMutableArray *names = [NSMutableArray array];
   struct dirent *entry;
   BOOL ok = YES;
   errno = 0;
@@ -329,26 +402,38 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
     {
       if (!strcmp (entry->d_name, ".") || !strcmp (entry->d_name, ".."))
         continue;
-      NSString *name = [[NSFileManager defaultManager]
-          stringWithFileSystemRepresentation:entry->d_name
-                                      length:strlen (entry->d_name)];
-      if (!name || strcmp ([name fileSystemRepresentation], entry -> d_name))
+      NSString *child = FVEntryName (entry->d_name);
+      if (!child)
         {
           ok = NO;
           break;
         }
-      NSString *child = [NSString stringWithFormat:@"/proc/self/fd/%d/%@", fd, name];
-      if (!FVRemoveVerified (child, manifest, [relative stringByAppendingPathComponent:name], job))
-        {
-          ok = NO;
-          break;
-        }
+      [names addObject:child];
       errno = 0;
     }
   if (errno)
     ok = NO;
+  NSUInteger i;
+  for (i = 0; ok && i < [names count]; i++)
+    {
+      NSString *child = [names objectAtIndex:i];
+      ok = FVRemoveVerifiedAt (fd, [child fileSystemRepresentation], manifest,
+                               [relative stringByAppendingPathComponent:child], job);
+    }
   closedir (dir);
-  return ok && rmdir ([path fileSystemRepresentation]) == 0;
+  return ok && unlinkat (parent, name, AT_REMOVEDIR) == 0;
+}
+
+static BOOL
+FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FVOperations *job)
+{
+  int parent = FVOpenParent (path);
+  if (parent < 0)
+    return NO;
+  BOOL ok = FVRemoveVerifiedAt (parent, [[path lastPathComponent] fileSystemRepresentation],
+                                manifest, relative, job);
+  close (parent);
+  return ok;
 }
 
 @implementation FVOperations
