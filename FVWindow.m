@@ -88,10 +88,14 @@ FVViewerTextColor (void)
 
 @end
 
-@class FVDialog;
+/* A modal panel run through -runDialog:, which returns its button index. */
+@protocol FVModalDialog
+- (NSInteger)run;
+@end
+
 @interface FVWindow (Activity)
 
-- (NSInteger)runDialog:(FVDialog *)dialog;
+- (NSInteger)runDialog:(id<FVModalDialog>)dialog;
 - (void)updateActivity;
 
 @end
@@ -409,8 +413,10 @@ FVDialogTextColor (NSWindow *window)
   return [NSColor colorWithCalibratedWhite:brightness < .5 ? .94 : .12 alpha:1];
 }
 
+static NSInteger FVRunModalPanel (NSPanel *panel);
+
 /* A small modal panel avoids unsupported NSAlert accessory APIs. */
-@interface FVDialog : NSObject
+@interface FVDialog : NSObject <FVModalDialog>
 {
   NSPanel *panel;
   NSTextField *field;
@@ -599,8 +605,35 @@ FVDialogTextColor (NSWindow *window)
     }
   else if (choices)
     [panel makeFirstResponder:choices];
-  /* Bounded modal sessions also observe programmatic completion while no X
-     events arrive (GNUstep's blocking modal peek otherwise waits indefinitely). */
+  return FVRunModalPanel (panel);
+}
+
+- (NSString *)value
+{
+  return [field stringValue];
+}
+
+- (BOOL)apply
+{
+  return [apply state] == NSOnState;
+}
+
+- (void)dealloc
+{
+  RELEASE (panel);
+  RELEASE (field);
+  RELEASE (apply);
+  RELEASE (choices);
+  DEALLOC;
+}
+
+@end
+
+/* Bounded modal sessions also observe programmatic completion while no X
+   events arrive (GNUstep's blocking modal peek otherwise waits indefinitely). */
+static NSInteger
+FVRunModalPanel (NSPanel *panel)
+{
   /* GUI's public session type is opaque, but libobjc2 sees the implementation's
      complete struct encoding. Use untyped selectors with the verified pointer
      ABI to avoid false typed-selector mismatch diagnostics. */
@@ -621,22 +654,243 @@ FVDialogTextColor (NSWindow *window)
   return result;
 }
 
-- (NSString *)value
+/* Go to Folder: one path field that completes folder names with Tab, lists
+   recent and matching folders in its menu, accepts ~ and paths relative to
+   the current folder, and reports a missing folder inside the panel. */
+static NSString *const FVGoRecentsKey = @"GoToFolderRecents";
+
+@interface FVGoPanel : NSObject <NSComboBoxDelegate, FVModalDialog>
 {
-  return [field stringValue];
+  NSPanel *panel;
+  NSComboBox *field;
+  NSTextField *problem;
+  NSString *base;
+  NSString *destination;
 }
 
-- (BOOL)apply
+- (id)initWithFolder:(NSString *)folder;
+- (NSInteger)run;
+- (NSString *)destination;
+
+@end
+
+@implementation FVGoPanel
+
+- (id)initWithFolder:(NSString *)folder
 {
-  return [apply state] == NSOnState;
+  if ((self = [super init]))
+    {
+      base = [folder copy];
+      panel = [[FVDialogPanel alloc] initWithContentRect:NSMakeRect (0, 0, 520, 150)
+                                               styleMask:NSTitledWindowMask
+                                                 backing:NSBackingStoreBuffered
+                                                   defer:NO];
+      [panel setTitle:@"Go to Folder"];
+      NSView *content = [panel contentView];
+      NSTextField *label = FVLabel (NSMakeRect (18, 112, 484, 22), @"Go to the folder:");
+      [label setSelectable:NO];
+      [label setTextColor:FVDialogTextColor (panel)];
+      [content addSubview:label];
+      field = [[NSComboBox alloc] initWithFrame:NSMakeRect (18, 80, 484, 28)];
+      [field setCompletes:NO];
+      [field setNumberOfVisibleItems:10];
+      [field setStringValue:folder];
+      [field setDelegate:self];
+      NSArray *recents = [[NSUserDefaults standardUserDefaults] arrayForKey:FVGoRecentsKey];
+      NSUInteger i;
+      for (i = 0; i < [recents count]; i++)
+        if ([[recents objectAtIndex:i] isKindOfClass:[NSString class]])
+          [field addItemWithObjectValue:[recents objectAtIndex:i]];
+      [content addSubview:field];
+      problem = RETAIN (FVLabel (NSMakeRect (18, 52, 484, 22), @""));
+      [problem setSelectable:NO];
+      [content addSubview:problem];
+      NSButton *cancel = FVButton (content, @"Cancel", @selector (cancel:), self, 298, 100);
+      [cancel setFrameOrigin:NSMakePoint (298, 14)];
+      [cancel setKeyEquivalent:@"\e"];
+      NSButton *go = FVButton (content, @"Go", @selector (go:), self, 402, 100);
+      [go setFrameOrigin:NSMakePoint (402, 14)];
+      [go setKeyEquivalent:@"\r"];
+    }
+  return self;
+}
+
+/* Problems are red; the count of several matches is plain text. */
+- (void)showMessage:(NSString *)text error:(BOOL)error
+{
+  [problem setTextColor:error ? [NSColor colorWithCalibratedRed:.92 green:.32 blue:.26 alpha:1]
+                              : FVDialogTextColor (panel)];
+  [problem setStringValue:text];
+}
+
+- (NSString *)resolve:(NSString *)text
+{
+  text = [text stringByExpandingTildeInPath];
+  if (![text isAbsolutePath])
+    text = [base stringByAppendingPathComponent:text];
+  return [text stringByStandardizingPath];
+}
+
+/* Tab completes the last component to the folders that start with it: all of
+   one match (with a trailing slash), or the part several matches share. The
+   matches also fill the field's menu. */
+- (void)complete
+{
+  NSString *text = [field stringValue];
+  if ([text isEqual:@"~"])
+    {
+      [field setStringValue:@"~/"];
+      return;
+    }
+  NSRange slash = [text rangeOfString:@"/" options:NSBackwardsSearch];
+  NSString *head = slash.location == NSNotFound ? @"" : [text substringToIndex:NSMaxRange (slash)];
+  NSString *partial = [text substringFromIndex:[head length]];
+  NSString *folder = [head length] ? [self resolve:head] : base;
+  NSArray *names = [[[NSFileManager defaultManager] contentsOfDirectoryAtPath:folder error:NULL]
+      sortedArrayUsingSelector:@selector (caseInsensitiveCompare:)];
+  NSMutableArray *matches = [NSMutableArray array];
+  NSUInteger i;
+  for (i = 0; i < [names count]; i++)
+    {
+      NSString *name = [names objectAtIndex:i];
+      BOOL directory = NO;
+      if (([name hasPrefix:@"."] && ![partial hasPrefix:@"."])
+          || ([partial length]
+              && [name rangeOfString:partial options:NSCaseInsensitiveSearch | NSAnchoredSearch]
+                         .location
+                     == NSNotFound)
+          || ![[NSFileManager defaultManager]
+                 fileExistsAtPath:[folder stringByAppendingPathComponent:name]
+                      isDirectory:&directory]
+          || !directory)
+        continue;
+      [matches addObject:name];
+    }
+  [field removeAllItems];
+  for (i = 0; i < [matches count]; i++)
+    [field addItemWithObjectValue:[head stringByAppendingString:[matches objectAtIndex:i]]];
+  if (![matches count])
+    {
+      BOOL directory = NO;
+      NSBeep ();
+      if (![[NSFileManager defaultManager] fileExistsAtPath:folder isDirectory:&directory]
+          || !directory)
+        [self showMessage:[NSString stringWithFormat:@"The folder “%@” can’t be found.",
+                                                     [folder lastPathComponent]]
+                    error:YES];
+      else
+        [self showMessage:[NSString stringWithFormat:@"No folder in “%@” starts with “%@”.",
+                                                     [folder lastPathComponent], partial]
+                    error:YES];
+      return;
+    }
+  NSString *common = [matches objectAtIndex:0];
+  for (i = 1; i < [matches count]; i++)
+    common = [common commonPrefixWithString:[matches objectAtIndex:i]
+                                    options:NSCaseInsensitiveSearch];
+  if ([matches count] == 1)
+    common = [common stringByAppendingString:@"/"];
+  else
+    {
+      if ([common length] <= [partial length])
+        NSBeep ();
+      /* Name the matches here too; the menu lists them all. */
+      NSString *list = [[matches subarrayWithRange:NSMakeRange (0, MIN ([matches count], 5))]
+          componentsJoinedByString:@", "];
+      [self showMessage:[matches count] > 5
+                            ? [NSString stringWithFormat:@"%@ and %lu more", list,
+                                                         (unsigned long)([matches count] - 5)]
+                            : list
+                  error:NO];
+    }
+  [field setStringValue:[head stringByAppendingString:common]];
+  [[field currentEditor] setSelectedRange:NSMakeRange ([[field stringValue] length], 0)];
+}
+
+- (BOOL)control:(NSControl *)control
+               textView:(NSTextView *)textView
+    doCommandBySelector:(SEL)command
+{
+  if (!sel_isEqual (command, @selector (insertTab:)))
+    return NO;
+  [self complete];
+  return YES;
+}
+
+- (void)controlTextDidChange:(NSNotification *)note
+{
+  [problem setStringValue:@""];
+}
+
+- (void)comboBoxSelectionDidChange:(NSNotification *)note
+{
+  [problem setStringValue:@""];
+}
+
+- (void)go:(id)sender
+{
+  NSString *text = [field stringValue];
+  NSString *target = [self resolve:text];
+  BOOL directory = NO;
+  if (![text length])
+    return;
+  if (![[NSFileManager defaultManager] fileExistsAtPath:target isDirectory:&directory])
+    {
+      NSBeep ();
+      [self showMessage:[NSString stringWithFormat:@"The folder “%@” can’t be found.",
+                                                   [target lastPathComponent]]
+                  error:YES];
+      return;
+    }
+  if (!directory)
+    {
+      NSBeep ();
+      [self showMessage:[NSString stringWithFormat:@"“%@” is a file, not a folder.",
+                                                   [target lastPathComponent]]
+                  error:YES];
+      return;
+    }
+  RELEASE (destination);
+  destination = [target copy];
+  /* Remember the folder, under ~ when in the home folder, most recent first. */
+  text = [target stringByAbbreviatingWithTildeInPath];
+  NSMutableArray *recents = [NSMutableArray arrayWithObject:text];
+  NSArray *old = [[NSUserDefaults standardUserDefaults] arrayForKey:FVGoRecentsKey];
+  NSUInteger i;
+  for (i = 0; i < [old count] && [recents count] < 10; i++)
+    if (![[old objectAtIndex:i] isEqual:text])
+      [recents addObject:[old objectAtIndex:i]];
+  [[NSUserDefaults standardUserDefaults] setObject:recents forKey:FVGoRecentsKey];
+  [NSApp stopModalWithCode:0];
+}
+
+- (void)cancel:(id)sender
+{
+  [NSApp stopModalWithCode:1];
+}
+
+- (NSInteger)run
+{
+  [panel center];
+  [panel makeKeyAndOrderFront:nil];
+  [panel makeFirstResponder:field];
+  [field selectText:nil];
+  return FVRunModalPanel (panel);
+}
+
+- (NSString *)destination
+{
+  return destination;
 }
 
 - (void)dealloc
 {
+  [field setDelegate:nil];
   RELEASE (panel);
   RELEASE (field);
-  RELEASE (apply);
-  RELEASE (choices);
+  RELEASE (problem);
+  RELEASE (base);
+  RELEASE (destination);
   DEALLOC;
 }
 
@@ -2017,7 +2271,8 @@ FVClickStayedPut (NSEvent *down)
     }
 }
 
-- (NSInteger)runDialog:(FVDialog *)dialog
+/* Runs an FVDialog or FVGoPanel, showing "Waiting for input…" meanwhile. */
+- (NSInteger)runDialog:(id<FVModalDialog>)dialog
 {
   waitingForInput = YES;
   [self updateActivity];
@@ -2147,10 +2402,11 @@ FVClickStayedPut (NSEvent *down)
 
 - (void)go:(id)sender
 {
-  NSString *value = FVPrompt (self, @"Go to Folder", @"Enter a folder path, or ~ for your home:",
-                             [path isEqual:FVRecentsLocation] ? NSHomeDirectory () : path);
-  if (value)
-    [self navigate:value];
+  [self endEditingName:YES];
+  FVGoPanel *panel = AUTORELEASE ([[FVGoPanel alloc]
+      initWithFolder:[path isEqual:FVRecentsLocation] ? NSHomeDirectory () : path]);
+  if ([self runDialog:panel] == 0 && [panel destination])
+    [self navigate:[panel destination]];
 }
 
 - (void)openWith:(id)sender

@@ -71,8 +71,10 @@ Inspected development environment:
 - Each window has its own directory, selection, navigation history, filter and
   operation. Use File → New Window or Open Folder in New Window.
 - Back/Forward, Up, Home, Refresh and the view buttons are in the top navigation
-  bar. The path popup contains clickable ancestors. Go to Folder accepts tilde
-  expansion and absolute paths (relative paths are interpreted from the window).
+  bar. The path popup contains clickable ancestors. Go to Folder accepts `~`,
+  absolute paths and paths relative to the window's folder. Tab completes the
+  last folder name (listing the matches when several fit), the field's menu holds
+  recent folders and the matches, and a missing folder is reported in the panel.
 - The Locations outline has collapsible Common Locations, Favorites, Mounted and Network groups,
   with icons and no grid lines. Common locations include Home, existing
   Desktop/Documents/Downloads/Pictures/Music/Videos and the home Trash when it
