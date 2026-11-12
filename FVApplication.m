@@ -222,13 +222,13 @@ FVMigrateFileViewerDefaults (void)
 
 - (void)help:(id)sender
 {
-  NSRunAlertPanel (
-      @"Workspace",
+  FVRunAlert (
+      @"Workspace Help", @"Workspace",
       @"Use the path menu to visit ancestors. Filter matches names in the current directory; View "
       @"→ Recursive Filename Search searches beneath it. Columns select folders on a single click "
       @"and open files on double-click. Drag copies files; use Cut/Paste or Move To for explicit "
       @"moves. Cancel Work stops listing or copying. See README.md for safety details.",
-      @"OK", nil, nil);
+      @"OK", nil);
 }
 
 - (void)preferences:(id)sender
