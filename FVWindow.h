@@ -93,6 +93,8 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
 
 - (id)initWithPath:(NSString *)value;
 - (void)navigate:(NSString *)value;
+/* Shows the file in its folder, selected, clearing any search or filter. */
+- (void)selectFile:(NSString *)value;
 - (void)refresh:(id)sender;
 - (void)listingResult:(NSDictionary *)result;
 - (NSArray *)selectedPaths;

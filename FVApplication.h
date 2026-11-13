@@ -35,6 +35,8 @@
 
 - (BOOL)openFile:(NSString *)path withApplication:(NSString *)application
     andDeactivate:(BOOL)flag;
+/* NSWorkspace -selectFile:inFileViewerRootedAtPath:, asked over DO. */
+- (BOOL)selectFile:(NSString *)fullPath inFileViewerRootedAtPath:(NSString *)rootFullPath;
 - (void)newWindow:(id)sender;
 - (void)openPath:(NSString *)path;
 - (void)viewerBecameKey:(id)controller;

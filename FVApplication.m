@@ -179,6 +179,33 @@ FVMigrateFileViewerDefaults (void)
     [self openPath:[pendingPaths objectAtIndex:i]];
 }
 
+/* The File Viewer most recently used, preferring one on screen to a
+   minimized one; nil when none is open. */
+- (FVWindow *)recentViewer
+{
+  NSUInteger i;
+
+  for (i = [windows count]; i > 0; i--)
+    {
+      NSWindow *candidate = [[windows objectAtIndex:i - 1] window];
+      if ([candidate isVisible] && ![candidate isMiniaturized])
+        return [windows objectAtIndex:i - 1];
+    }
+  for (i = [windows count]; i > 0; i--)
+    if ([[[windows objectAtIndex:i - 1] window] isMiniaturized])
+      return [windows objectAtIndex:i - 1];
+  return nil;
+}
+
+- (void)bringViewerForward:(FVWindow *)controller
+{
+  NSWindow *window = [controller window];
+
+  if ([window isMiniaturized])
+    [window deminiaturize:self];
+  [window makeKeyAndOrderFront:self];
+}
+
 /* Opening Workspace while it runs (its Dock tile, openapp Workspace, or
    Workspace.app opened from a File Viewer) reopens it, as on macOS: bring
    the most recently used File Viewer forward, restoring it if every one
@@ -188,31 +215,77 @@ FVMigrateFileViewerDefaults (void)
    than trusting the flag. */
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)app hasVisibleWindows:(BOOL)flag
 {
-  NSWindow *window = nil;
-  NSUInteger i;
+  FVWindow *controller = [self recentViewer];
 
-  for (i = [windows count]; i > 0 && window == nil; i--)
-    {
-      NSWindow *candidate = [[windows objectAtIndex:i - 1] window];
-      if ([candidate isVisible] && ![candidate isMiniaturized])
-        window = candidate;
-    }
-  for (i = [windows count]; i > 0 && window == nil; i--)
-    {
-      NSWindow *candidate = [[windows objectAtIndex:i - 1] window];
-      if ([candidate isMiniaturized])
-        window = candidate;
-    }
   [NSApp activateIgnoringOtherApps:YES];
-  if (window == nil)
+  if (controller == nil)
     [self openPath:NSHomeDirectory ()];
   else
-    {
-      if ([window isMiniaturized])
-        [window deminiaturize:self];
-      [window makeKeyAndOrderFront:self];
-    }
+    [self bringViewerForward:controller];
   return NO;
+}
+
+/* NSWorkspace -selectFile:inFileViewerRootedAtPath: (the Dock's Show In
+   File Viewer, an app's reveal) reaches the delegate over Distributed
+   Objects. Workspace comes forward with the file selected in its folder,
+   as the Finder does: a File Viewer already showing that folder is
+   reused; otherwise a root path asks for a new File Viewer, and an empty
+   one for the most recently used (or a new one if none is open). An
+   empty file path just shows the root. */
+- (BOOL)selectFile:(NSString *)fullPath inFileViewerRootedAtPath:(NSString *)rootFullPath
+{
+  NSString *file = [fullPath length] ? [fullPath stringByStandardizingPath] : nil;
+  NSString *folder;
+  FVWindow *controller = nil;
+  NSUInteger i;
+
+  if (file == nil)
+    {
+      BOOL directory = NO;
+      if (![rootFullPath length]
+          || ![[NSFileManager defaultManager] fileExistsAtPath:rootFullPath
+                                                   isDirectory:&directory]
+          || !directory)
+        return NO;
+      folder = [rootFullPath stringByStandardizingPath];
+    }
+  else
+    {
+      if (![[NSFileManager defaultManager] fileExistsAtPath:file])
+        return NO;
+      folder = [file stringByDeletingLastPathComponent];
+    }
+  if (!launched)
+    {
+      /* Asked before the menus exist: answer once launching is done. */
+      [self performSelector:@selector (revealLater:)
+                 withObject:[NSArray arrayWithObjects:fullPath ? fullPath : @"",
+                                                      rootFullPath ? rootFullPath : @"", nil]
+                 afterDelay:0];
+      return YES;
+    }
+  for (i = [windows count]; i > 0 && controller == nil; i--)
+    if ([[[windows objectAtIndex:i - 1] currentPath] isEqual:folder])
+      controller = [windows objectAtIndex:i - 1];
+  if (controller == nil && file != nil && ![rootFullPath length])
+    controller = [self recentViewer];
+  [NSApp activateIgnoringOtherApps:YES];
+  if (controller == nil)
+    {
+      [self openPath:folder];
+      controller = [windows lastObject];
+    }
+  else
+    [self bringViewerForward:controller];
+  if (file != nil)
+    [controller selectFile:file];
+  return YES;
+}
+
+- (void)revealLater:(NSArray *)request
+{
+  [self selectFile:[request objectAtIndex:0]
+      inFileViewerRootedAtPath:[request objectAtIndex:1]];
 }
 
 - (void)openPath:(NSString *)value
