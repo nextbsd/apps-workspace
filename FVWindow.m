@@ -1600,6 +1600,24 @@ FVClickStayedPut (NSEvent *down)
   [self refresh:nil];
 }
 
+- (void)selectFile:(NSString *)value
+{
+  NSString *folder = [value stringByDeletingLastPathComponent];
+  [self endEditingName:NO];
+  if (searching || [[filter stringValue] length])
+    {
+      [filter setStringValue:@""];
+      [self showSearchResults:NO];
+      searching = NO;
+    }
+  if (![folder isEqual:path])
+    [self navigate:folder];
+  RELEASE (revealPath);
+  revealPath = [value copy];
+  editRevealed = NO;
+  [self refresh:nil];
+}
+
 - (void)recentsChanged:(NSNotification *)notification
 {
   if (!closed && [path isEqual:FVRecentsLocation])
@@ -2752,6 +2770,7 @@ FVClickStayedPut (NSEvent *down)
     return;
   NSString *value = AUTORELEASE (revealPath);
   revealPath = nil;
+  [[self nameViewForPath:value rect:&rect] scrollRectToVisible:rect];
   if (mode == 1)
     {
       NSView *matrix = [self nameViewForPath:value rect:&rect];

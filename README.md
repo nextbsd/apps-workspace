@@ -251,6 +251,14 @@ doesn't write the Dock's defaults; it posts the distributed notification
 answers (see "Keeping applications from other programs" in nextbsd/apps-dock's
 README).
 
+Other programs show a file in Workspace with NSWorkspace's
+`-selectFile:inFileViewerRootedAtPath:` (the Dock's Show In File Viewer uses
+it): Workspace becomes active and selects the file in its folder, as the Finder
+does. A File Viewer already showing that folder is reused; otherwise a root
+path opens a new File Viewer, and an empty root path uses the most recently
+used one (or a new one when none is open). GNUstep's NSWorkspace starts
+Workspace first if it isn't running.
+
 Right-clicking an item in a File Viewer selects it (unless it's already
 selected) and shows a menu with Open, Open With…, Show Package Contents, Get
 Info, Rename, Add to Dock, Add to Favorites, Copy, Duplicate and Move to Trash,
