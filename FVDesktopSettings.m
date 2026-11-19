@@ -45,10 +45,12 @@ static NSString *const FVWSInnerGapKey = @"TilingGapsInner";
 static NSString *const FVWSOuterGapKey = @"TilingGapsOuter";
 static NSString *const FVWSBorderKey = @"TilingBorder";
 
-/* DockWM keeps its own placement, DockPlacement in its defaults domain, as
-   its DockPlacement enumeration: left top, left centre, right top, right
-   centre, top, bottom. */
-static NSString *const FVDockDomain = @"DockWM";
+/* The Dock keeps its own placement, DockPlacement in its defaults domain,
+   as its DockPlacement enumeration: left top, left centre, right top,
+   right centre, top, bottom. Its domain is Dock; it was DockWM before
+   the Dock was renamed (nextbsd/apps-dock#36). */
+static NSString *const FVDockDomain = @"Dock";
+static NSString *const FVOldDockDomain = @"DockWM";
 static NSString *const FVDockPlacementKey = @"DockPlacement";
 enum
 {
@@ -485,12 +487,20 @@ FVLabel (NSRect frame, NSString *text)
   [self refresh];
 }
 
-/* Tell the Dock where to go: DockWM reads DockPlacement. Keep its
-   centring along the left and right edges. */
+/* Tell the Dock where to go: it reads DockPlacement. Keep its centring
+   along the left and right edges. A Dock not yet renamed still reads the
+   DockWM domain: that one follows too, where it exists. */
 - (void)updateDockPlacement:(NSString *)position
 {
+  [self updateDockPlacement:position inDomain:FVDockDomain];
+  if ([[NSUserDefaults standardUserDefaults] persistentDomainForName:FVOldDockDomain] != nil)
+    [self updateDockPlacement:position inDomain:FVOldDockDomain];
+}
+
+- (void)updateDockPlacement:(NSString *)position inDomain:(NSString *)name
+{
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-  NSMutableDictionary *dock = AUTORELEASE ([[defaults persistentDomainForName:FVDockDomain]
+  NSMutableDictionary *dock = AUTORELEASE ([[defaults persistentDomainForName:name]
       mutableCopy]);
   if (dock == nil)
     dock = [NSMutableDictionary dictionary];
@@ -507,7 +517,7 @@ FVLabel (NSRect frame, NSString *text)
   else
     placement = centred ? FVDockRightCenter : FVDockRightTop;
   [dock setObject:[NSNumber numberWithInteger:placement] forKey:FVDockPlacementKey];
-  [defaults setPersistentDomain:dock forName:FVDockDomain];
+  [defaults setPersistentDomain:dock forName:name];
 }
 
 - (void)postChangeOfKey:(NSString *)key value:(NSString *)value
