@@ -198,7 +198,8 @@ FVGapValues (void)
   return mode ? mode : [self themeDefaultForKey:FVWindowModeKey mode:nil];
 }
 
-+ (NSString *)effectiveValueForKey:(NSString *)key mode:(NSString *)mode
+/* The setting as saved: the user's, else the theme's. */
++ (NSString *)savedValueForKey:(NSString *)key mode:(NSString *)mode
 {
   NSString *value;
   if (FVIsPerMode (key))
@@ -206,6 +207,31 @@ FVGapValues (void)
   else
     value = FVValidValue ([[NSUserDefaults standardUserDefaults] objectForKey:key], key);
   return value ? value : [self themeDefaultForKey:key mode:mode];
+}
+
+/* As on macOS, the Dock is never at the top with the Mac menu bar, above
+   or below it; the NeXT and in-window menu styles keep the top. */
++ (BOOL)dockCanBeAtTopInMode:(NSString *)mode
+{
+  return ![[self savedValueForKey:FVMenuStyleKey mode:mode] isEqual:@"macmenubar"];
+}
+
+/* A Dock position as it is used in a mode: a top Dock goes to the bottom,
+   macOS's default, while the Dock can't be at the top. The saved one stays
+   top, for the NeXT style. */
++ (NSString *)dockPosition:(NSString *)position inMode:(NSString *)mode
+{
+  if ([position isEqual:@"top"] && ![self dockCanBeAtTopInMode:mode])
+    return @"bottom";
+  return position;
+}
+
++ (NSString *)effectiveValueForKey:(NSString *)key mode:(NSString *)mode
+{
+  NSString *value = [self savedValueForKey:key mode:mode];
+  if ([key isEqual:FVDockPositionKey])
+    value = [self dockPosition:value inMode:mode];
+  return value;
 }
 
 + (NSString *)themeDefaultForKey:(NSString *)key
@@ -399,6 +425,12 @@ FVLabel (NSRect frame, NSString *text)
                                            selector:@selector (themeDidActivate:)
                                                name:GSThemeDidActivateNotification
                                              object:nil];
+  /* The Dock's own Settings changes its position too. */
+  [[NSDistributedNotificationCenter defaultCenter]
+      addObserver:self
+         selector:@selector (desktopSettingsDidChange:)
+             name:FVDesktopSettingsChangedNotification
+           object:nil];
   [self refresh];
   return self;
 }
@@ -432,19 +464,34 @@ FVLabel (NSRect frame, NSString *text)
   NSArray *values = FVAllowedValues (key);
   NSArray *titles = FVValueTitles (key);
   NSString *user = [[self class] userValueForKey:key mode:mode];
+  NSString *theme = [[self class] themeDefaultForKey:key mode:mode];
+  BOOL dock = [key isEqual:FVDockPositionKey];
+  BOOL noTop = dock && ![[self class] dockCanBeAtTopInMode:mode];
   NSUInteger i;
+  NSInteger index;
 
+  /* The Dock position as it is used: with the Mac menu bar, Top isn't
+     offered and a saved top shows as the bottom, where the Dock is. */
+  if (dock)
+    {
+      user = user ? [[self class] dockPosition:user inMode:mode] : nil;
+      theme = [[self class] dockPosition:theme inMode:mode];
+    }
   [popUp removeAllItems];
   [popUp addItemWithTitle:[NSString stringWithFormat:@"Use theme default (%@)",
-      FVTitleForValue (key, [[self class] themeDefaultForKey:key mode:mode])]];
+      FVTitleForValue (key, theme)]];
   [[popUp lastItem] setRepresentedObject:nil];
   for (i = 0; i < [values count]; i++)
     {
+      if (noTop && [[values objectAtIndex:i] isEqual:@"top"])
+        continue;
       [popUp addItemWithTitle:[titles objectAtIndex:i]];
       [[popUp lastItem] setRepresentedObject:[values objectAtIndex:i]];
     }
-  i = user ? [values indexOfObject:user] : NSNotFound;
-  [popUp selectItemAtIndex:i == NSNotFound ? 0 : (NSInteger)i + 1];
+  index = user ? [popUp indexOfItemWithRepresentedObject:user] : -1;
+  [popUp selectItemAtIndex:index < 0 ? 0 : index];
+  if (dock)
+    [popUp setToolTip:noTop ? @"The Dock can't be at the top with the Mac menu bar." : nil];
 }
 
 - (void)selectValue:(NSString *)value inPopUp:(NSPopUpButton *)popUp
@@ -485,6 +532,16 @@ FVLabel (NSRect frame, NSString *text)
 - (void)themeDidActivate:(NSNotification *)note
 {
   [self refresh];
+}
+
+/* Another app (the Dock's Settings) changed the Dock position, the menu
+   style or the window mode: show it. */
+- (void)desktopSettingsDidChange:(NSNotification *)note
+{
+  id key = [[note userInfo] objectForKey:@"key"];
+  if ([key isEqual:FVDockPositionKey] || [key isEqual:FVMenuStyleKey]
+      || [key isEqual:FVWindowModeKey] || [key isEqual:FVModeSettingsKey])
+    [self refresh];
 }
 
 /* Tell the Dock where to go: it reads DockPlacement. Keep its centring
@@ -593,6 +650,7 @@ FVLabel (NSRect frame, NSString *text)
       mutableCopy]);
   NSString *oldMode = [[self class] windowMode];
   NSString *oldDock = [[self class] effectiveValueForKey:FVDockPositionKey];
+  NSString *oldSavedDock = [[self class] savedValueForKey:FVDockPositionKey mode:oldMode];
   NSString *oldMenu = [[self class] effectiveValueForKey:FVMenuStyleKey];
 
   if (global == nil)
@@ -607,9 +665,12 @@ FVLabel (NSRect frame, NSString *text)
 
   NSString *mode = [[self class] windowMode];
   NSString *dock = [[self class] effectiveValueForKey:FVDockPositionKey];
+  NSString *savedDock = [[self class] savedValueForKey:FVDockPositionKey mode:mode];
   NSString *menu = [[self class] effectiveValueForKey:FVMenuStyleKey];
-  if (![dock isEqual:oldDock] || [key isEqual:FVDockPositionKey])
-    [self updateDockPlacement:dock];
+  /* The Dock's own DockPlacement (X11's) keeps the saved position: a top
+     Dock is only at the bottom while the Mac menu bar is in use. */
+  if (![savedDock isEqual:oldSavedDock] || [key isEqual:FVDockPositionKey])
+    [self updateDockPlacement:savedDock];
   [defaults synchronize];
 
   /*
@@ -634,7 +695,8 @@ FVLabel (NSRect frame, NSString *text)
     [self postChangeOfKey:key value:[[self class] effectiveValueForKey:key]];
   if (modeChanged && ![mode isEqual:@"tiling"])
     [self performSelector:@selector (sendWindowMode:) withObject:mode afterDelay:0.75];
-  if ([key isEqual:FVWindowModeKey])
+  /* The menu style decides whether the Dock can be at the top. */
+  if ([key isEqual:FVWindowModeKey] || [key isEqual:FVMenuStyleKey])
     [self refresh];
 }
 
@@ -677,6 +739,7 @@ FVLabel (NSRect frame, NSString *text)
 {
   [NSObject cancelPreviousPerformRequestsWithTarget:self];
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+  [[NSDistributedNotificationCenter defaultCenter] removeObserver:self];
   RELEASE (modePopUp);
   RELEASE (minimizePopUp);
   RELEASE (dockPopUp);

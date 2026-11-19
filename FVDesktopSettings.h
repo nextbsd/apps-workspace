@@ -56,7 +56,8 @@ extern NSString *const FVDesktopSettingsChangedNotification;
 + (NSString *)windowMode;
 /* The effective value of a desktop setting: the user's, else the theme's,
    else the built-in one (in the current window mode for the Dock
-   position and the menu style). */
+   position and the menu style). With the Mac menu bar a top Dock is at
+   the bottom, as on macOS: the saved top is kept for the other styles. */
 + (NSString *)effectiveValueForKey:(NSString *)key;
 /* The active theme's default for it, or the built-in one. */
 + (NSString *)themeDefaultForKey:(NSString *)key;
