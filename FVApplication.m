@@ -21,7 +21,6 @@
 #import "FVWindow.h"
 #import "FVThumbnails.h"
 #import "FVDesktopSettings.h"
-#import "FVThemeSettings.h"
 
 static void
 FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArray *keys)
@@ -477,17 +476,10 @@ FVMigrateFileViewerDefaults (void)
       [item setLabel:@"Desktop"];
       [item setView:[desktopSettings view]];
       [tabs addTabViewItem:item];
-      appearanceSettings = [[FVThemeSettings alloc] initWithFrame:page];
-      item = AUTORELEASE ([[NSTabViewItem alloc] initWithIdentifier:@"Appearance"]);
-      [item setLabel:@"Appearance"];
-      [item setView:[appearanceSettings view]];
-      [tabs addTabViewItem:item];
-      [preferencesPanel center];
     }
   [thumbnailCheckbox setState:[FVThumbnailOperation enabled] ? NSOnState : NSOffState];
   [self hiddenFilesPreferencesChanged:nil];
   [desktopSettings refresh];
-  [appearanceSettings refresh];
   [preferencesPanel makeKeyAndOrderFront:self];
 }
 
@@ -517,7 +509,6 @@ FVMigrateFileViewerDefaults (void)
   RELEASE (hiddenFilesCheckbox);
   RELEASE (thumbnailCheckbox);
   RELEASE (desktopSettings);
-  RELEASE (appearanceSettings);
   RELEASE (preferencesPanel);
   RELEASE (helpWindow);
   RELEASE (windows);
