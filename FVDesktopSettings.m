@@ -527,6 +527,9 @@ FVLabel (NSRect frame, NSString *text)
   NSControl *control;
   while ((control = [e nextObject]) != nil)
     [control setEnabled:tiling];
+  /* Tiling forces in-window menus: the picker does not apply. */
+  [menuPopUp setEnabled:!tiling];
+  [menuPopUp setToolTip:tiling ? @"Tiling always uses in-window menus." : nil];
 }
 
 - (void)themeDidActivate:(NSNotification *)note
@@ -664,6 +667,16 @@ FVLabel (NSRect frame, NSString *text)
   [defaults setPersistentDomain:global forName:NSGlobalDomain];
 
   NSString *mode = [[self class] windowMode];
+  /* Tiling forces in-window menus: apply it immediately when switching in. */
+  if (![mode isEqual:oldMode] && [mode isEqual:@"tiling"])
+    {
+      NSMutableDictionary *g = AUTORELEASE ([[defaults persistentDomainForName:NSGlobalDomain]
+          mutableCopy]);
+      if (g == nil)
+        g = [NSMutableDictionary dictionary];
+      [self setModeValue:@"inwindow" forKey:FVMenuStyleKey inDomain:g];
+      [defaults setPersistentDomain:g forName:NSGlobalDomain];
+    }
   NSString *dock = [[self class] effectiveValueForKey:FVDockPositionKey];
   NSString *savedDock = [[self class] savedValueForKey:FVDockPositionKey mode:mode];
   NSString *menu = [[self class] effectiveValueForKey:FVMenuStyleKey];

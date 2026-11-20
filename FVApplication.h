@@ -20,6 +20,7 @@
 #import <AppKit/AppKit.h>
 
 @class FVDesktopSettings;
+@class FVThemeSettings;
 
 @interface FVApplication : NSObject
 {
@@ -30,6 +31,7 @@
   NSButton *thumbnailCheckbox;
   NSButton *hiddenFilesCheckbox;
   FVDesktopSettings *desktopSettings;
+  FVThemeSettings *appearanceSettings;
   NSWindow *helpWindow;
 }
 
