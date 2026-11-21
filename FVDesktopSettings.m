@@ -18,6 +18,7 @@
  */
 
 #import "FVDesktopSettings.h"
+#import "FVDockSettings.h"
 #import <GNUstepGUI/GSTheme.h>
 
 /* libs-gui's current display server (GSDisplayServer.h, whose header
@@ -370,6 +371,15 @@ FVLabel (NSRect frame, NSString *text)
   menuPopUp = [self popUpForKey:FVMenuStyleKey label:@"Menu style:" row:y];
   y -= step;
   minimizePopUp = [self popUpForKey:FVMinimizeStyleKey label:@"Minimize windows:" row:y];
+  y -= step;
+  /* NextBSD: a clear Dock with lines between its sections. NeXTSTEP: a
+     tile behind each icon (common_Tile) and no lines. */
+  dockStylePopUp = [self popUpWithTag:0
+                                label:@"Dock style:"
+                                  row:y
+                               action:@selector (chooseDockStyle:)];
+  [dockStylePopUp addItemWithTitle:@"NextBSD (clear, with separators)"];
+  [dockStylePopUp addItemWithTitle:@"NeXTSTEP (tiles, no separators)"];
 
   /* Tiling: WindowServer's own settings (apps-windowserver, "Window
      tiling"), used in the tiling mode. */
@@ -514,6 +524,9 @@ FVLabel (NSRect frame, NSString *text)
   [self fillPopUp:dockPopUp];
   [self fillPopUp:menuPopUp];
   [self fillPopUp:minimizePopUp];
+  BOOL tiles = [[FVDockSettings dockValueForKey:@"DockUseCellTileBackground"] boolValue];
+  BOOL separators = [[FVDockSettings dockValueForKey:@"DockShowsSeparators"] boolValue];
+  [dockStylePopUp selectItemAtIndex:(tiles && !separators) ? 1 : 0];
 
   [self selectValue:[[self class] windowServerValueForKey:FVWSLayoutKey] inPopUp:layoutPopUp];
   [self selectValue:[[self class] windowServerValueForKey:FVWSInnerGapKey] inPopUp:innerGapPopUp];
@@ -726,6 +739,16 @@ FVLabel (NSRect frame, NSString *text)
 }
 
 /* The Tiling section: WindowServer's settings, sent at once. */
+- (void)chooseDockStyle:(id)sender
+{
+  BOOL nextstep = [sender indexOfSelectedItem] == 1;
+  [FVDockSettings setDockValues:
+      [NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithBool:nextstep],
+                                                 @"DockUseCellTileBackground",
+                                                 [NSNumber numberWithBool:!nextstep],
+                                                 @"DockShowsSeparators", nil]];
+}
+
 - (void)chooseTiling:(id)sender
 {
   NSString *key, *value;
@@ -757,6 +780,7 @@ FVLabel (NSRect frame, NSString *text)
   RELEASE (minimizePopUp);
   RELEASE (dockPopUp);
   RELEASE (menuPopUp);
+  RELEASE (dockStylePopUp);
   RELEASE (layoutPopUp);
   RELEASE (innerGapPopUp);
   RELEASE (outerGapPopUp);
