@@ -24,6 +24,14 @@
 static const NSUInteger FVBackgroundMaxExits = 3;
 static const NSTimeInterval FVBackgroundExitWindow = 60;
 
+NSDictionary *
+FVDefaultsDomainOnDisk (NSString *name)
+{
+  NSString *file = [[GSDefaultsRootForUser (NSUserName ()) stringByAppendingPathComponent:name]
+      stringByAppendingPathExtension:@"plist"];
+  return [NSDictionary dictionaryWithContentsOfFile:file];
+}
+
 @implementation FVBackground
 
 + (FVBackground *)sharedBackground
@@ -51,15 +59,14 @@ static const NSTimeInterval FVBackgroundExitWindow = 60;
   return [[names allObjects] sortedArrayUsingSelector:@selector (caseInsensitiveCompare:)];
 }
 
-/* The background's own domain; InnerSpace.app's until the background has
-   saved one (it adopts those on its first start). */
+/* The background's own domain, as it last saved it; InnerSpace.app's
+   until the background has saved one (it adopts those on its first
+   start). */
 + (NSDictionary *)settings
 {
-  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-  [defaults synchronize];
-  NSDictionary *domain = [defaults persistentDomainForName:WorkspaceBackgroundDomain];
+  NSDictionary *domain = FVDefaultsDomainOnDisk (WorkspaceBackgroundDomain);
   if ([domain count] == 0)
-    domain = [defaults persistentDomainForName:@"InnerSpace"];
+    domain = FVDefaultsDomainOnDisk (@"InnerSpace");
   return domain;
 }
 
@@ -70,21 +77,24 @@ static const NSTimeInterval FVBackgroundExitWindow = 60;
 
 + (void)setSetting:(id)value forKey:(NSString *)key
 {
-  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-  NSMutableDictionary *domain =
-      [NSMutableDictionary dictionaryWithDictionary:[self settings]];
-  if (value)
-    [domain setObject:value forKey:key];
-  else
-    [domain removeObjectForKey:key];
-  [defaults setPersistentDomain:domain forName:WorkspaceBackgroundDomain];
-  [defaults synchronize];
-  /* The background doesn't read back what another process saves in its
-     domain while it runs: the settings go with the notification. */
+  NSDictionary *change = [NSDictionary dictionaryWithObject:value forKey:key];
+  /* While it runs, the background owns its domain, its modules' settings
+     included, and saves the change itself: it doesn't read back what
+     another process saves there, so the change goes with the
+     notification. */
+  if (![[self sharedBackground] isRunning])
+    {
+      NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+      NSMutableDictionary *domain =
+          [NSMutableDictionary dictionaryWithDictionary:[self settings]];
+      [domain addEntriesFromDictionary:change];
+      [defaults setPersistentDomain:domain forName:WorkspaceBackgroundDomain];
+      [defaults synchronize];
+    }
   [[NSDistributedNotificationCenter defaultCenter]
       postNotificationName:WorkspaceBackgroundSettingsDidChangeNotification
                     object:nil
-                  userInfo:domain];
+                  userInfo:change];
 }
 
 + (void)showOptions
@@ -99,6 +109,11 @@ static const NSTimeInterval FVBackgroundExitWindow = 60;
   if ((self = [super init]) != nil)
     exits = [[NSMutableArray alloc] init];
   return self;
+}
+
+- (BOOL)isRunning
+{
+  return [task isRunning];
 }
 
 - (void)start

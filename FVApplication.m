@@ -24,6 +24,7 @@
 #import "FVBackground.h"
 #import "FVDesktop.h"
 #import "FVBackgroundSettings.h"
+#import "FVDockSettings.h"
 
 static void
 FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArray *keys)
@@ -444,8 +445,9 @@ FVMigrateFileViewerDefaults (void)
       [preferencesPanel setTitle:@"Preferences"];
       [preferencesPanel setReleasedWhenClosed:NO];
       /* General: the file viewer's settings. Desktop: NextBSD's desktop
-         settings, whose defaults come from the theme. Background: the
-         desktop background's module. */
+         settings, whose defaults come from the theme. Dock: the Dock's
+         size, behavior and status extras. Background: the desktop
+         background's module. */
       NSTabView *tabs = AUTORELEASE ([[NSTabView alloc]
           initWithFrame:NSMakeRect (10, 10, 520, 450)]);
       [[preferencesPanel contentView] addSubview:tabs];
@@ -485,6 +487,11 @@ FVMigrateFileViewerDefaults (void)
       [item setLabel:@"Desktop"];
       [item setView:[desktopSettings view]];
       [tabs addTabViewItem:item];
+      dockSettings = [[FVDockSettings alloc] initWithFrame:page];
+      item = AUTORELEASE ([[NSTabViewItem alloc] initWithIdentifier:@"Dock"]);
+      [item setLabel:@"Dock"];
+      [item setView:[dockSettings view]];
+      [tabs addTabViewItem:item];
       backgroundSettings = [[FVBackgroundSettings alloc] initWithFrame:page];
       item = AUTORELEASE ([[NSTabViewItem alloc] initWithIdentifier:@"Background"]);
       [item setLabel:@"Background"];
@@ -494,6 +501,7 @@ FVMigrateFileViewerDefaults (void)
   [thumbnailCheckbox setState:[FVThumbnailOperation enabled] ? NSOnState : NSOffState];
   [self hiddenFilesPreferencesChanged:nil];
   [desktopSettings refresh];
+  [dockSettings refresh];
   [backgroundSettings refresh];
   [preferencesPanel makeKeyAndOrderFront:self];
 }
@@ -524,6 +532,7 @@ FVMigrateFileViewerDefaults (void)
   RELEASE (hiddenFilesCheckbox);
   RELEASE (thumbnailCheckbox);
   RELEASE (desktopSettings);
+  RELEASE (dockSettings);
   RELEASE (backgroundSettings);
   RELEASE (preferencesPanel);
   RELEASE (helpWindow);

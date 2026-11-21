@@ -21,6 +21,7 @@
 
 @class FVDesktopSettings;
 @class FVBackgroundSettings;
+@class FVDockSettings;
 
 @interface FVApplication : NSObject
 {
@@ -31,6 +32,7 @@
   NSButton *thumbnailCheckbox;
   NSButton *hiddenFilesCheckbox;
   FVDesktopSettings *desktopSettings;
+  FVDockSettings *dockSettings;
   FVBackgroundSettings *backgroundSettings;
   NSWindow *helpWindow;
 }

@@ -32,6 +32,7 @@
   NSButton *everyDisplayCheckbox;
   NSButton *optionsButton;
   NSArray *modules;
+  BOOL refreshing;
 }
 
 - (id)initWithFrame:(NSRect)frame;

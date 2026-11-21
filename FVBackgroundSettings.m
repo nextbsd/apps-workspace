@@ -106,6 +106,8 @@ FVBackgroundLabel (NSRect frame, NSString *text)
 
 - (void)refresh
 {
+  /* Showing the saved module selects its row: that's no choice to save. */
+  refreshing = YES;
   ASSIGN (modules, [FVBackground moduleNames]);
   [moduleTable reloadData];
   NSString *current = [FVBackground settingForKey:@"currentModule"];
@@ -120,6 +122,7 @@ FVBackgroundLabel (NSRect frame, NSString *text)
   id everywhere = [FVBackground settingForKey:@"moduleOnEveryDisplay"];
   [everyDisplayCheckbox setState:(everywhere == nil || [everywhere boolValue]) ? NSOnState
                                                                                : NSOffState];
+  refreshing = NO;
 }
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)table
@@ -137,7 +140,7 @@ FVBackgroundLabel (NSRect frame, NSString *text)
 - (void)tableViewSelectionDidChange:(NSNotification *)note
 {
   NSInteger row = [moduleTable selectedRow];
-  if (row < 0 || row >= (NSInteger)[modules count])
+  if (refreshing || row < 0 || row >= (NSInteger)[modules count])
     return;
   NSString *module = [modules objectAtIndex:row];
   if (![module isEqual:[FVBackground settingForKey:@"currentModule"]])

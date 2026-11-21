@@ -19,6 +19,11 @@
 
 #import <Foundation/Foundation.h>
 
+/* Another app's defaults domain as saved on disk now. Its own process may
+   have saved it since this one last read it, and -persistentDomainForName:
+   doesn't read it again. nil if it has none. */
+NSDictionary *FVDefaultsDomainOnDisk (NSString *name);
+
 /*
  * The desktop background. WorkspaceBackground (Background/, a tool in
  * Workspace.app's Resources) draws an InnerSpace module behind every
@@ -39,12 +44,15 @@
 /* At login, and when Workspace quits. */
 - (void)start;
 - (void)stop;
+- (BOOL)isRunning;
 
 /* The installed modules' names, sorted. */
 + (NSArray *)moduleNames;
 /* currentModule, runSpeed (seconds between frames), moduleOnEveryDisplay. */
 + (id)settingForKey:(NSString *)key;
-/* Saves the setting; the background applies it at once. */
+/* The background applies the setting at once and saves it with the
+   rest of its domain (its modules' settings too); with no background
+   running, it's saved here. */
 + (void)setSetting:(id)value forKey:(NSString *)key;
 /* The current module's own settings, in a window of the background's. */
 + (void)showOptions;
