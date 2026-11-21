@@ -372,13 +372,16 @@ FVLabel (NSRect frame, NSString *text)
   y -= step;
   minimizePopUp = [self popUpForKey:FVMinimizeStyleKey label:@"Minimize windows:" row:y];
   y -= step;
-  /* NextBSD: a clear Dock with lines between its sections. NeXTSTEP: a
-     tile behind each icon (common_Tile) and no lines. */
+  /* NextBSD: clear, with lines between the Dock's sections. Mac: a
+     see-through panel behind them, as macOS's Dock has; the Dock's own
+     choice in the Mac menu style until one is made here. NeXTSTEP: a
+     tile behind each icon (common_Tile), no lines. */
   dockStylePopUp = [self popUpWithTag:0
                                 label:@"Dock style:"
                                   row:y
                                action:@selector (chooseDockStyle:)];
   [dockStylePopUp addItemWithTitle:@"NextBSD (clear, with separators)"];
+  [dockStylePopUp addItemWithTitle:@"Mac (translucent, with separators)"];
   [dockStylePopUp addItemWithTitle:@"NeXTSTEP (tiles, no separators)"];
 
   /* Tiling: WindowServer's own settings (apps-windowserver, "Window
@@ -526,7 +529,11 @@ FVLabel (NSRect frame, NSString *text)
   [self fillPopUp:minimizePopUp];
   BOOL tiles = [[FVDockSettings dockValueForKey:@"DockUseCellTileBackground"] boolValue];
   BOOL separators = [[FVDockSettings dockValueForKey:@"DockShowsSeparators"] boolValue];
-  [dockStylePopUp selectItemAtIndex:(tiles && !separators) ? 1 : 0];
+  id panel = [FVDockSettings dockValueForKey:@"DockShowsPanel"];
+  BOOL panelShown = panel ? [panel boolValue]
+                          : [[[self class] effectiveValueForKey:FVMenuStyleKey]
+                                isEqual:@"macmenubar"];
+  [dockStylePopUp selectItemAtIndex:(tiles && !separators) ? 2 : panelShown ? 1 : 0];
 
   [self selectValue:[[self class] windowServerValueForKey:FVWSLayoutKey] inPopUp:layoutPopUp];
   [self selectValue:[[self class] windowServerValueForKey:FVWSInnerGapKey] inPopUp:innerGapPopUp];
@@ -741,12 +748,15 @@ FVLabel (NSRect frame, NSString *text)
 /* The Tiling section: WindowServer's settings, sent at once. */
 - (void)chooseDockStyle:(id)sender
 {
-  BOOL nextstep = [sender indexOfSelectedItem] == 1;
+  NSInteger style = [sender indexOfSelectedItem];
+  BOOL nextstep = style == 2;
   [FVDockSettings setDockValues:
       [NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithBool:nextstep],
                                                  @"DockUseCellTileBackground",
                                                  [NSNumber numberWithBool:!nextstep],
-                                                 @"DockShowsSeparators", nil]];
+                                                 @"DockShowsSeparators",
+                                                 [NSNumber numberWithBool:style == 1],
+                                                 @"DockShowsPanel", nil]];
 }
 
 - (void)chooseTiling:(id)sender
