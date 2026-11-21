@@ -21,6 +21,9 @@
 #import "FVWindow.h"
 #import "FVThumbnails.h"
 #import "FVDesktopSettings.h"
+#import "FVBackground.h"
+#import "FVDesktop.h"
+#import "FVBackgroundSettings.h"
 
 static void
 FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArray *keys)
@@ -102,6 +105,7 @@ FVMigrateFileViewerDefaults (void)
 
 - (void)applicationWillTerminate:(NSNotification *)note
 {
+  [[FVBackground sharedBackground] stop];
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
   [defaults synchronize];
   NSMutableDictionary *domain = [NSMutableDictionary dictionaryWithDictionary:
@@ -171,6 +175,10 @@ FVMigrateFileViewerDefaults (void)
   launched = YES;
   /* WindowServer tiles or stacks as the window mode in effect says. */
   [FVDesktopSettings syncWindowServer];
+  /* The desktop is Workspace's; its background is drawn by a process of
+     its own, under the desktop's clear windows. */
+  [[FVDesktop sharedDesktop] show];
+  [[FVBackground sharedBackground] start];
   /* Like the Finder, Workspace starts with no File Viewer unless it was
      asked to open a folder: the first one comes when Workspace is opened
      again (see -applicationShouldHandleReopen:hasVisibleWindows:). */
@@ -436,7 +444,8 @@ FVMigrateFileViewerDefaults (void)
       [preferencesPanel setTitle:@"Preferences"];
       [preferencesPanel setReleasedWhenClosed:NO];
       /* General: the file viewer's settings. Desktop: NextBSD's desktop
-         settings, whose defaults come from the theme. */
+         settings, whose defaults come from the theme. Background: the
+         desktop background's module. */
       NSTabView *tabs = AUTORELEASE ([[NSTabView alloc]
           initWithFrame:NSMakeRect (10, 10, 520, 450)]);
       [[preferencesPanel contentView] addSubview:tabs];
@@ -476,10 +485,16 @@ FVMigrateFileViewerDefaults (void)
       [item setLabel:@"Desktop"];
       [item setView:[desktopSettings view]];
       [tabs addTabViewItem:item];
+      backgroundSettings = [[FVBackgroundSettings alloc] initWithFrame:page];
+      item = AUTORELEASE ([[NSTabViewItem alloc] initWithIdentifier:@"Background"]);
+      [item setLabel:@"Background"];
+      [item setView:[backgroundSettings view]];
+      [tabs addTabViewItem:item];
     }
   [thumbnailCheckbox setState:[FVThumbnailOperation enabled] ? NSOnState : NSOffState];
   [self hiddenFilesPreferencesChanged:nil];
   [desktopSettings refresh];
+  [backgroundSettings refresh];
   [preferencesPanel makeKeyAndOrderFront:self];
 }
 
@@ -509,6 +524,7 @@ FVMigrateFileViewerDefaults (void)
   RELEASE (hiddenFilesCheckbox);
   RELEASE (thumbnailCheckbox);
   RELEASE (desktopSettings);
+  RELEASE (backgroundSettings);
   RELEASE (preferencesPanel);
   RELEASE (helpWindow);
   RELEASE (windows);
