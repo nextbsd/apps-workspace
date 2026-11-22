@@ -18,7 +18,6 @@
  */
 
 #import "FVDesktopSettings.h"
-#import "FVDockSettings.h"
 #import <GNUstepGUI/GSTheme.h>
 
 /* libs-gui's current display server (GSDisplayServer.h, whose header
@@ -32,6 +31,7 @@ static NSString *const FVMinimizeStyleKey = @"NBMinimizeStyle";
 static NSString *const FVDockPositionKey = @"NBDockPosition";
 static NSString *const FVMenuStyleKey = @"NBMenuStyle";
 static NSString *const FVWindowModeKey = @"NBWindowMode";
+static NSString *const FVDockStyleKey = @"NBDockStyle";
 
 /* The per-mode dictionaries, { stacking = {...}; tiling = {...}; }: the
    user's in NSGlobalDomain, the theme's in its Info.plist. */
@@ -72,7 +72,8 @@ enum
   FVTagMode,
   FVTagLayout,
   FVTagInnerGap,
-  FVTagOuterGap
+  FVTagOuterGap,
+  FVTagDockStyle
 };
 
 /* The settings shown here: their values (in menu order), the titles for
@@ -88,6 +89,8 @@ FVAllowedValues (NSString *key)
     return [NSArray arrayWithObjects:@"nextstep", @"inwindow", @"macmenubar", nil];
   if ([key isEqual:FVWindowModeKey])
     return [NSArray arrayWithObjects:@"stacking", @"tiling", nil];
+  if ([key isEqual:FVDockStyleKey])
+    return [NSArray arrayWithObjects:@"nextstep", @"mac", @"tiling", nil];
   return nil;
 }
 
@@ -103,6 +106,9 @@ FVValueTitles (NSString *key)
     return [NSArray arrayWithObjects:@"NeXT", @"In-window", @"Mac menu bar", nil];
   if ([key isEqual:FVWindowModeKey])
     return [NSArray arrayWithObjects:@"Stacking", @"Tiling", nil];
+  if ([key isEqual:FVDockStyleKey])
+    return [NSArray arrayWithObjects:@"Optimized for NeXT", @"Optimized for Mac",
+                                     @"Optimized for Tiling", nil];
   return nil;
 }
 
@@ -117,6 +123,8 @@ FVBuiltinValue (NSString *key)
     return @"nextstep";
   if ([key isEqual:FVWindowModeKey])
     return @"stacking";
+  if ([key isEqual:FVDockStyleKey])
+    return @"nextstep";
   return nil;
 }
 
@@ -306,6 +314,74 @@ FVGapValues (void)
 
 /* ---- the tab ---- */
 
+/* A small picture of a style's desktop, 120x72: NeXT (a floating menu at
+   the top left, the Dock down the right as tiles), Mac (a menu bar, a
+   see-through Dock along the bottom) or Tiling (windows side by side,
+   menus inside them). */
+static NSImage *
+FVPresetImage (NSUInteger preset)
+{
+  NSSize size = NSMakeSize (120, 72);
+  NSImage *image = AUTORELEASE ([[NSImage alloc] initWithSize:size]);
+  NSColor *desk = [NSColor colorWithCalibratedRed:0.10 green:0.22 blue:0.30 alpha:1];
+  NSColor *bar = [NSColor colorWithCalibratedWhite:0.10 alpha:1];
+  NSColor *window = [NSColor colorWithCalibratedWhite:0.82 alpha:1];
+  NSColor *title = [NSColor colorWithCalibratedWhite:0.35 alpha:1];
+  NSColor *icon = [NSColor colorWithCalibratedRed:0.30 green:0.70 blue:0.95 alpha:1];
+  NSUInteger i;
+
+  [image lockFocus];
+  [desk set];
+  NSRectFill (NSMakeRect (0, 0, size.width, size.height));
+  if (preset == 0)
+    {
+      [window set];
+      NSRectFill (NSMakeRect (30, 14, 56, 40));
+      [title set];
+      NSRectFill (NSMakeRect (30, 50, 56, 4));
+      [bar set];
+      NSRectFill (NSMakeRect (4, 46, 18, 22));
+      for (i = 0; i < 4; i++)
+        {
+          [[NSColor colorWithCalibratedWhite:0.30 alpha:1] set];
+          NSRectFill (NSMakeRect (102, 56 - i * 16, 14, 14));
+          [icon set];
+          NSRectFill (NSMakeRect (105, 59 - i * 16, 8, 8));
+        }
+    }
+  else if (preset == 1)
+    {
+      [[bar colorWithAlphaComponent:0.8] set];
+      NSRectFill (NSMakeRect (0, 66, size.width, 6));
+      [window set];
+      NSRectFill (NSMakeRect (24, 20, 64, 38));
+      [title set];
+      NSRectFill (NSMakeRect (24, 54, 64, 4));
+      [[NSColor colorWithCalibratedWhite:0.12 alpha:0.55] set];
+      [[NSBezierPath bezierPathWithRoundedRect:NSMakeRect (34, 2, 52, 13)
+                                       xRadius:4 yRadius:4] fill];
+      [icon set];
+      for (i = 0; i < 4; i++)
+        NSRectFill (NSMakeRect (38 + i * 12, 5, 8, 8));
+    }
+  else
+    {
+      [window set];
+      NSRectFill (NSMakeRect (4, 18, 54, 50));
+      NSRectFill (NSMakeRect (62, 44, 54, 24));
+      NSRectFill (NSMakeRect (62, 18, 54, 22));
+      [title set];
+      NSRectFill (NSMakeRect (4, 64, 54, 4));
+      NSRectFill (NSMakeRect (62, 64, 54, 4));
+      NSRectFill (NSMakeRect (62, 36, 54, 4));
+      [icon set];
+      for (i = 0; i < 4; i++)
+        NSRectFill (NSMakeRect (38 + i * 12, 4, 8, 8));
+    }
+  [image unlockFocus];
+  return image;
+}
+
 static NSTextField *
 FVLabel (NSRect frame, NSString *text)
 {
@@ -346,6 +422,7 @@ FVLabel (NSRect frame, NSString *text)
   NSInteger tag = [key isEqual:FVMinimizeStyleKey] ? FVTagMinimize
                   : [key isEqual:FVDockPositionKey] ? FVTagDock
                   : [key isEqual:FVMenuStyleKey]    ? FVTagMenu
+                  : [key isEqual:FVDockStyleKey]    ? FVTagDockStyle
                                                     : FVTagMode;
   return [self popUpWithTag:tag label:title row:y action:@selector (choose:)];
 }
@@ -355,8 +432,33 @@ FVLabel (NSRect frame, NSString *text)
   if ((self = [super init]) == nil)
     return nil;
   view = [[NSView alloc] initWithFrame:frame];
-  CGFloat y = NSHeight (frame) - 46;
+  CGFloat y = NSHeight (frame) - 34;
   CGFloat step = 34;
+
+  /* The style presets, each a picture of its desktop: a starting point
+     the settings below can change. */
+  [view addSubview:FVLabel (NSMakeRect (20, y, 300, 22), @"Choose your style:")];
+  presetButtons = [[NSMutableArray alloc] init];
+  NSArray *presetNames = [NSArray arrayWithObjects:@"NeXT", @"Mac", @"Tiling", nil];
+  CGFloat column = (NSWidth (frame) - 40) / 3;
+  NSUInteger i;
+  for (i = 0; i < 3; i++)
+    {
+      NSButton *button = [[NSButton alloc]
+          initWithFrame:NSMakeRect (20 + i * column + (column - 136) / 2, y - 112, 136, 108)];
+      [button setButtonType:NSPushOnPushOffButton];
+      [button setBordered:YES];
+      [button setImage:FVPresetImage (i)];
+      [button setImagePosition:NSImageAbove];
+      [button setTitle:[presetNames objectAtIndex:i]];
+      [button setTag:i];
+      [button setTarget:self];
+      [button setAction:@selector (choosePreset:)];
+      [view addSubview:button];
+      [presetButtons addObject:button];
+      RELEASE (button);
+    }
+  y -= 112 + 46;
 
   /* Stacking (floating windows, NeXT menus) or tiling (WindowServer lays
      the windows out side by side); each mode keeps its own Dock position
@@ -372,17 +474,11 @@ FVLabel (NSRect frame, NSString *text)
   y -= step;
   minimizePopUp = [self popUpForKey:FVMinimizeStyleKey label:@"Minimize windows:" row:y];
   y -= step;
-  /* NextBSD: clear, with lines between the Dock's sections. Mac: a
-     see-through panel behind them, as macOS's Dock has; the Dock's own
-     choice in the Mac menu style until one is made here. NeXTSTEP: a
-     tile behind each icon (common_Tile), no lines. */
-  dockStylePopUp = [self popUpWithTag:0
-                                label:@"Dock style:"
-                                  row:y
-                               action:@selector (chooseDockStyle:)];
-  [dockStylePopUp addItemWithTitle:@"NextBSD (clear, with separators)"];
-  [dockStylePopUp addItemWithTitle:@"Mac (translucent, with separators)"];
-  [dockStylePopUp addItemWithTitle:@"NeXTSTEP (tiles, no separators)"];
+  /* NBDockStyle, named for the presets: NeXT, a tile behind each icon
+     (common_Tile) and no lines between the Dock's sections (the NextBSD
+     theme's default); Mac, the lines on a see-through panel, as macOS's
+     Dock has; Tiling, clear, with the lines. */
+  dockStylePopUp = [self popUpForKey:FVDockStyleKey label:@"Dock style:" row:y];
 
   /* Tiling: WindowServer's own settings (apps-windowserver, "Window
      tiling"), used in the tiling mode. */
@@ -463,6 +559,8 @@ FVLabel (NSRect frame, NSString *text)
       return FVDockPositionKey;
     case FVTagMode:
       return FVWindowModeKey;
+    case FVTagDockStyle:
+      return FVDockStyleKey;
     default:
       return FVMenuStyleKey;
     }
@@ -527,13 +625,25 @@ FVLabel (NSRect frame, NSString *text)
   [self fillPopUp:dockPopUp];
   [self fillPopUp:menuPopUp];
   [self fillPopUp:minimizePopUp];
-  BOOL tiles = [[FVDockSettings dockValueForKey:@"DockUseCellTileBackground"] boolValue];
-  BOOL separators = [[FVDockSettings dockValueForKey:@"DockShowsSeparators"] boolValue];
-  id panel = [FVDockSettings dockValueForKey:@"DockShowsPanel"];
-  BOOL panelShown = panel ? [panel boolValue]
-                          : [[[self class] effectiveValueForKey:FVMenuStyleKey]
-                                isEqual:@"macmenubar"];
-  [dockStylePopUp selectItemAtIndex:(tiles && !separators) ? 2 : panelShown ? 1 : 0];
+  [self fillPopUp:dockStylePopUp];
+
+  /* The preset the settings match, if any. */
+  NSString *mode = [[self class] windowMode];
+  NSString *menu = [[self class] effectiveValueForKey:FVMenuStyleKey];
+  NSString *dockStyle = [[self class] effectiveValueForKey:FVDockStyleKey];
+  NSInteger preset = -1;
+  if ([mode isEqual:@"tiling"] && [dockStyle isEqual:@"tiling"])
+    preset = 2;
+  else if ([mode isEqual:@"stacking"] && [menu isEqual:@"macmenubar"]
+           && [dockStyle isEqual:@"mac"])
+    preset = 1;
+  else if ([mode isEqual:@"stacking"] && [menu isEqual:@"nextstep"]
+           && [dockStyle isEqual:@"nextstep"])
+    preset = 0;
+  NSEnumerator *buttons = [presetButtons objectEnumerator];
+  NSButton *button;
+  while ((button = [buttons nextObject]) != nil)
+    [button setState:[button tag] == preset ? NSOnState : NSOffState];
 
   [self selectValue:[[self class] windowServerValueForKey:FVWSLayoutKey] inPopUp:layoutPopUp];
   [self selectValue:[[self class] windowServerValueForKey:FVWSInnerGapKey] inPopUp:innerGapPopUp];
@@ -666,25 +776,51 @@ FVLabel (NSRect frame, NSString *text)
 
 - (void)choose:(id)sender
 {
-  NSString *key = [self keyForPopUp:sender];
-  NSString *value = [[sender selectedItem] representedObject];
+  id value = [[sender selectedItem] representedObject];
+  [self applyValues:[NSDictionary dictionaryWithObject:value ? value : (id)[NSNull null]
+                                                forKey:[self keyForPopUp:sender]]];
+}
+
+/*
+ * Save desktop settings together (a value, or NSNull for the theme's)
+ * and apply them: a pop-up's one, or a style preset's several. The
+ * window mode goes first, so a Dock position or menu style given with
+ * it is saved for the new mode.
+ */
+- (void)applyValues:(NSDictionary *)values
+{
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-  NSMutableDictionary *global = AUTORELEASE ([[defaults persistentDomainForName:NSGlobalDomain]
-      mutableCopy]);
   NSString *oldMode = [[self class] windowMode];
   NSString *oldDock = [[self class] effectiveValueForKey:FVDockPositionKey];
   NSString *oldSavedDock = [[self class] savedValueForKey:FVDockPositionKey mode:oldMode];
   NSString *oldMenu = [[self class] effectiveValueForKey:FVMenuStyleKey];
+  NSMutableArray *keys = [NSMutableArray arrayWithArray:[values allKeys]];
+  NSEnumerator *e;
+  NSString *key;
 
-  if (global == nil)
-    global = [NSMutableDictionary dictionary];
-  if (FVIsPerMode (key))
-    [self setModeValue:value forKey:key inDomain:global];
-  else if (value)
-    [global setObject:value forKey:key];
-  else
-    [global removeObjectForKey:key];
-  [defaults setPersistentDomain:global forName:NSGlobalDomain];
+  if ([keys containsObject:FVWindowModeKey])
+    {
+      [keys removeObject:FVWindowModeKey];
+      [keys insertObject:FVWindowModeKey atIndex:0];
+    }
+  e = [keys objectEnumerator];
+  while ((key = [e nextObject]) != nil)
+    {
+      id value = [values objectForKey:key];
+      NSMutableDictionary *global = AUTORELEASE ([[defaults persistentDomainForName:NSGlobalDomain]
+          mutableCopy]);
+      if (global == nil)
+        global = [NSMutableDictionary dictionary];
+      if (value == [NSNull null])
+        value = nil;
+      if (FVIsPerMode (key))
+        [self setModeValue:value forKey:key inDomain:global];
+      else if (value)
+        [global setObject:value forKey:key];
+      else
+        [global removeObjectForKey:key];
+      [defaults setPersistentDomain:global forName:NSGlobalDomain];
+    }
 
   NSString *mode = [[self class] windowMode];
   /* Tiling forces in-window menus: apply it immediately when switching in. */
@@ -702,7 +838,7 @@ FVLabel (NSRect frame, NSString *text)
   NSString *menu = [[self class] effectiveValueForKey:FVMenuStyleKey];
   /* The Dock's own DockPlacement (X11's) keeps the saved position: a top
      Dock is only at the bottom while the Mac menu bar is in use. */
-  if (![savedDock isEqual:oldSavedDock] || [key isEqual:FVDockPositionKey])
+  if (![savedDock isEqual:oldSavedDock] || [values objectForKey:FVDockPositionKey])
     [self updateDockPlacement:savedDock];
   [defaults synchronize];
 
@@ -720,17 +856,48 @@ FVLabel (NSRect frame, NSString *text)
     [NSObject cancelPreviousPerformRequestsWithTarget:self];
   if (modeChanged && [mode isEqual:@"tiling"])
     [self sendWindowMode:mode];
-  if ([key isEqual:FVDockPositionKey] || ![dock isEqual:oldDock])
+  if ([values objectForKey:FVDockPositionKey] || ![dock isEqual:oldDock])
     [self postChangeOfKey:FVDockPositionKey value:dock];
-  if ([key isEqual:FVMenuStyleKey] || ![menu isEqual:oldMenu])
+  if ([values objectForKey:FVMenuStyleKey] || ![menu isEqual:oldMenu])
     [self postChangeOfKey:FVMenuStyleKey value:menu];
-  if ([key isEqual:FVMinimizeStyleKey])
-    [self postChangeOfKey:key value:[[self class] effectiveValueForKey:key]];
+  if ([values objectForKey:FVMinimizeStyleKey])
+    [self postChangeOfKey:FVMinimizeStyleKey
+                    value:[[self class] effectiveValueForKey:FVMinimizeStyleKey]];
+  if ([values objectForKey:FVDockStyleKey])
+    [self postChangeOfKey:FVDockStyleKey
+                    value:[[self class] effectiveValueForKey:FVDockStyleKey]];
   if (modeChanged && ![mode isEqual:@"tiling"])
     [self performSelector:@selector (sendWindowMode:) withObject:mode afterDelay:0.75];
   /* The menu style decides whether the Dock can be at the top. */
-  if ([key isEqual:FVWindowModeKey] || [key isEqual:FVMenuStyleKey])
+  if ([values objectForKey:FVWindowModeKey] || [values objectForKey:FVMenuStyleKey])
     [self refresh];
+}
+
+/* The style presets: what each sets (NSNull: the theme's default). NeXT:
+   floating menus, the theme's Dock (NeXTSTEP's tiles). Mac: the menu
+   bar, a see-through Dock along the bottom. Tiling: windows side by
+   side, in-window menus (tiling's), a clear Dock. */
+- (void)choosePreset:(id)sender
+{
+  NSInteger preset = [sender tag];
+  NSNull *theme = [NSNull null];
+  NSDictionary *values;
+  if (preset == 0)
+    values = [NSDictionary dictionaryWithObjectsAndKeys:
+        @"stacking", FVWindowModeKey, @"nextstep", FVMenuStyleKey,
+        theme, FVDockPositionKey, theme, FVMinimizeStyleKey,
+        theme, FVDockStyleKey, nil];
+  else if (preset == 1)
+    values = [NSDictionary dictionaryWithObjectsAndKeys:
+        @"stacking", FVWindowModeKey, @"macmenubar", FVMenuStyleKey,
+        @"bottom", FVDockPositionKey, @"dock", FVMinimizeStyleKey,
+        @"mac", FVDockStyleKey, nil];
+  else
+    values = [NSDictionary dictionaryWithObjectsAndKeys:
+        @"tiling", FVWindowModeKey, theme, FVDockPositionKey,
+        theme, FVMinimizeStyleKey, @"tiling", FVDockStyleKey, nil];
+  [self applyValues:values];
+  [self refresh];
 }
 
 /* Switch WindowServer's tiling, and tell the Dock and apps the mode. */
@@ -746,19 +913,6 @@ FVLabel (NSRect frame, NSString *text)
 }
 
 /* The Tiling section: WindowServer's settings, sent at once. */
-- (void)chooseDockStyle:(id)sender
-{
-  NSInteger style = [sender indexOfSelectedItem];
-  BOOL nextstep = style == 2;
-  [FVDockSettings setDockValues:
-      [NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithBool:nextstep],
-                                                 @"DockUseCellTileBackground",
-                                                 [NSNumber numberWithBool:!nextstep],
-                                                 @"DockShowsSeparators",
-                                                 [NSNumber numberWithBool:style == 1],
-                                                 @"DockShowsPanel", nil]];
-}
-
 - (void)chooseTiling:(id)sender
 {
   NSString *key, *value;
@@ -791,6 +945,7 @@ FVLabel (NSRect frame, NSString *text)
   RELEASE (dockPopUp);
   RELEASE (menuPopUp);
   RELEASE (dockStylePopUp);
+  RELEASE (presetButtons);
   RELEASE (layoutPopUp);
   RELEASE (innerGapPopUp);
   RELEASE (outerGapPopUp);
