@@ -46,6 +46,7 @@ extern NSString *const FVDesktopSettingsChangedNotification;
   NSPopUpButton *dockPopUp;
   NSPopUpButton *menuPopUp;
   NSPopUpButton *dockStylePopUp;
+  NSMutableArray *presetButtons;
   NSPopUpButton *layoutPopUp;
   NSPopUpButton *innerGapPopUp;
   NSPopUpButton *outerGapPopUp;

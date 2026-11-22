@@ -50,8 +50,6 @@ FVDockDefaults (void)
         [NSNumber numberWithBool:YES], FVBounceLaunchKey,
         [NSNumber numberWithBool:YES], FVBounceAttentionKey,
         [NSNumber numberWithBool:NO], FVSingleClickKey,
-        [NSNumber numberWithBool:NO], @"DockUseCellTileBackground",
-        [NSNumber numberWithBool:YES], @"DockShowsSeparators",
         [NSArray array], FVExtrasHiddenKey, nil];
   return defaults;
 }
