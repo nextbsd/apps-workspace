@@ -76,7 +76,7 @@ extern NSString *const FVDesktopSettingsChangedNotification;
 - (NSView *)view;
 /* Show the saved choices. */
 - (void)refresh;
-/* Leave tiling when the window style isn't Windows. */
-- (void)stackUnlessWindows;
+/* Leave tiling for the NeXT style, which always stacks. */
+- (void)stackInNeXTStyle;
 
 @end

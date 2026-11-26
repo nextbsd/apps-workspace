@@ -678,16 +678,14 @@ FVLabel (NSRect frame, NSString *text)
       [popUp addItemWithTitle:[titles objectAtIndex:i]];
       [[popUp lastItem] setRepresentedObject:[values objectAtIndex:i]];
     }
-  /* Tiling is the Windows style's, for now. */
+  /* The NeXT style always stacks: the window mode is Mac's and
+     Windows' to choose. */
   if ([key isEqual:FVWindowModeKey])
     {
-      BOOL windows = [[[self class] effectiveValueForKey:FVWindowStyleKey]
-                       isEqual:@"tiling"];
-      NSInteger t = [popUp indexOfItemWithRepresentedObject:@"tiling"];
-      [popUp setAutoenablesItems:NO];
-      if (t >= 0)
-        [[popUp itemAtIndex:t] setEnabled:windows];
-      [popUp setToolTip:windows ? nil : @"Tiling works in the Windows style."];
+      BOOL next = [[[self class] effectiveValueForKey:FVWindowStyleKey]
+                    isEqual:@"nextstep"];
+      [popUp setEnabled:!next];
+      [popUp setToolTip:next ? @"The NeXT style always stacks windows." : nil];
     }
   index = user ? [popUp indexOfItemWithRepresentedObject:user] : -1;
   [popUp selectItemAtIndex:index < 0 ? 0 : index];
@@ -752,9 +750,11 @@ FVLabel (NSRect frame, NSString *text)
   NSControl *control;
   while ((control = [e nextObject]) != nil)
     [control setEnabled:tiling];
-  /* Tiling forces in-window menus: the picker does not apply. */
+  /* Tiling sets the menus by the window style: the picker does not
+     apply. */
   [menuPopUp setEnabled:!tiling];
-  [menuPopUp setToolTip:tiling ? @"Tiling always uses in-window menus." : nil];
+  [menuPopUp setToolTip:tiling ? @"Tiling uses the Mac menu bar in the Mac style, "
+                                 @"and menus in each window in the Windows style." : nil];
 }
 
 - (void)themeDidActivate:(NSNotification *)note
@@ -874,7 +874,7 @@ FVLabel (NSRect frame, NSString *text)
   id value = [[sender selectedItem] representedObject];
   [self applyValues:[NSDictionary dictionaryWithObject:value ? value : (id)[NSNull null]
                                                 forKey:[self keyForPopUp:sender]]];
-  [self stackUnlessWindows];
+  [self stackInNeXTStyle];
 }
 
 /*
@@ -919,14 +919,19 @@ FVLabel (NSRect frame, NSString *text)
     }
 
   NSString *mode = [[self class] windowMode];
-  /* Tiling forces in-window menus: apply it immediately when switching in. */
-  if (![mode isEqual:oldMode] && [mode isEqual:@"tiling"])
+  /* Tiling's menus: the Mac menu bar in the Mac style, else in each
+     window; set them as the mode or the style changes. */
+  if ([mode isEqual:@"tiling"]
+      && (![mode isEqual:oldMode] || [values objectForKey:FVWindowStyleKey]))
     {
+      BOOL mac = [[[self class] effectiveValueForKey:FVWindowStyleKey]
+                   isEqual:@"mac"];
       NSMutableDictionary *g = AUTORELEASE ([[defaults persistentDomainForName:NSGlobalDomain]
           mutableCopy]);
       if (g == nil)
         g = [NSMutableDictionary dictionary];
-      [self setModeValue:@"inwindow" forKey:FVMenuStyleKey inDomain:g];
+      [self setModeValue:mac ? @"macmenubar" : @"inwindow"
+                  forKey:FVMenuStyleKey inDomain:g];
       [defaults setPersistentDomain:g forName:NSGlobalDomain];
     }
   NSString *dock = [[self class] effectiveValueForKey:FVDockPositionKey];
@@ -987,8 +992,8 @@ FVLabel (NSRect frame, NSString *text)
    floating menus, the theme's Dock (NeXTSTEP's tiles). Mac: the menu
    bar, a see-through Dock along the bottom. Windows: menus in each
    window, the taskbar along the bottom, its title bar buttons and
-   scrollers. Stacking or tiling is a setting of its own; tiling is the
-   Windows style's, for now, so NeXT and Mac stack. ("tiling" is the
+   scrollers. Stacking or tiling is a setting of its own, Mac's and
+   Windows' to choose: NeXT always stacks. ("tiling" is the
    Windows style's saved value, from when it was named for tiling.) */
 - (void)choosePreset:(id)sender
 {
@@ -1013,15 +1018,15 @@ FVLabel (NSRect frame, NSString *text)
         @"dock", FVMinimizeStyleKey, @"tiling", FVDockStyleKey,
         @"split", FVScrollerStyleKey, @"tiling", FVWindowStyleKey, nil];
   [self applyValues:values];
-  [self stackUnlessWindows];
+  [self stackInNeXTStyle];
   [self refresh];
 }
 
-/* Tiling is the Windows style's, for now: any other style stacks. */
-- (void)stackUnlessWindows
+/* The NeXT style always stacks. */
+- (void)stackInNeXTStyle
 {
   if ([[[self class] windowMode] isEqual:@"tiling"]
-      && ![[[self class] effectiveValueForKey:FVWindowStyleKey] isEqual:@"tiling"])
+      && [[[self class] effectiveValueForKey:FVWindowStyleKey] isEqual:@"nextstep"])
     [self applyValues:[NSDictionary dictionaryWithObject:@"stacking"
                                                    forKey:FVWindowModeKey]];
 }
