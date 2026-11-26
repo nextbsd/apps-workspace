@@ -412,6 +412,11 @@ FVToolbarButton (NSView *view, NSString *title, SEL action, id target,
   [button setImagePosition:NSImageOnly];
   [button setBordered:NO];
   [button setToolTip:title];
+  /* Toolbar buttons are for the pointer, as on macOS: they never take the
+     keyboard focus, so a new window doesn't open with a focus ring around
+     Back. Greyed out while they can't be used. */
+  [button setRefusesFirstResponder:YES];
+  [[button cell] setImageDimsWhenDisabled:YES];
   return button;
 }
 
@@ -1209,9 +1214,9 @@ FVClickStayedPut (NSEvent *down)
           initWithFrame:NSMakeRect (8, contentSize.height - 40, contentSize.width - 16, 32)];
       [bar setAutoresizingMask:NSViewWidthSizable | NSViewMinYMargin];
       [content addSubview:bar];
-      FVToolbarButton (bar, @"Back", @selector (back:), self, 0, 0);
-      FVToolbarButton (bar, @"Forward", @selector (forward:), self, 38, 1);
-      FVToolbarButton (bar, @"Up", @selector (parent:), self, 76, 2);
+      backButton = FVToolbarButton (bar, @"Back", @selector (back:), self, 0, 0);
+      forwardButton = FVToolbarButton (bar, @"Forward", @selector (forward:), self, 38, 1);
+      upButton = FVToolbarButton (bar, @"Up", @selector (parent:), self, 76, 2);
       FVToolbarButton (bar, @"Home", @selector (home:), self, 114, 3);
       FVToolbarButton (bar, @"Refresh", @selector (refresh:), self, 152, 4);
       modeButtons = [[NSArray alloc] initWithObjects:
@@ -1636,6 +1641,7 @@ FVClickStayedPut (NSEvent *down)
 
 - (void)refresh:(id)sender
 {
+  [self updateNavigationButtons];
   [self endEditingName:NO];
   [self invalidateThumbnails];
   NSMutableDictionary *columns = [NSMutableDictionary dictionary];
@@ -2140,6 +2146,14 @@ FVClickStayedPut (NSEvent *down)
 - (void)home:(id)sender
 {
   [self navigate:NSHomeDirectory ()];
+}
+
+/* Back, Forward and Up, enabled as their Go menu items are. */
+- (void)updateNavigationButtons
+{
+  [backButton setEnabled:historyIndex > 0];
+  [forwardButton setEnabled:historyIndex + 1 < (NSInteger)[history count]];
+  [upButton setEnabled:path && ![path isEqual:@"/"] && ![path isEqual:FVRecentsLocation]];
 }
 
 - (void)parent:(id)sender
