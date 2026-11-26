@@ -43,6 +43,11 @@ static NSString *const FVScrollerStyleKey = @"NBScrollerStyle";
    told of a change. */
 static NSString *const FVAppearanceKey = @"NBAppearance";
 static NSString *const FVWindowStyleKey = @"NBWindowStyle";
+/* NBDesktopIcons (show or hide): files and disks on the desktop. Not the
+   theme's: the style decides by default (Mac and Windows show them, NeXT
+   doesn't), and tiling, whose windows cover the desktop, never shows
+   them. */
+static NSString *const FVDesktopIconsKey = @"NBDesktopIcons";
 
 /* The per-mode dictionaries, { stacking = {...}; tiling = {...}; }: the
    user's in NSGlobalDomain, the theme's in its Info.plist. */
@@ -88,7 +93,8 @@ enum
   FVTagDockStyle,
   FVTagScrollerStyle,
   FVTagAppearance,
-  FVTagWindowStyle
+  FVTagWindowStyle,
+  FVTagDesktopIcons
 };
 
 /* The settings shown here: their values (in menu order), the titles for
@@ -112,6 +118,8 @@ FVAllowedValues (NSString *key)
     return [NSArray arrayWithObjects:@"dark", @"light", nil];
   if ([key isEqual:FVWindowStyleKey])
     return [NSArray arrayWithObjects:@"nextstep", @"mac", @"tiling", nil];
+  if ([key isEqual:FVDesktopIconsKey])
+    return [NSArray arrayWithObjects:@"show", @"hide", nil];
   return nil;
 }
 
@@ -136,6 +144,8 @@ FVValueTitles (NSString *key)
     return [NSArray arrayWithObjects:@"Dark", @"Light", nil];
   if ([key isEqual:FVWindowStyleKey])
     return [NSArray arrayWithObjects:@"NeXT", @"Mac", @"Windows", nil];
+  if ([key isEqual:FVDesktopIconsKey])
+    return [NSArray arrayWithObjects:@"Show", @"Hide", nil];
   return nil;
 }
 
@@ -208,6 +218,9 @@ FVGapValues (void)
  */
 + (NSString *)themeDefaultForKey:(NSString *)key mode:(NSString *)mode
 {
+  if ([key isEqual:FVDesktopIconsKey])
+    return [[self effectiveValueForKey:FVWindowStyleKey mode:mode] isEqual:@"nextstep"]
+               ? @"hide" : @"show";
   NSDictionary *info = [[GSTheme theme] infoDictionary];
   NSString *value = nil;
   if (FVIsPerMode (key))
@@ -291,6 +304,13 @@ FVGapValues (void)
   if ([key isEqual:FVWindowModeKey])
     return [self windowMode];
   return [self effectiveValueForKey:key mode:[self windowMode]];
+}
+
++ (BOOL)desktopIconsShown
+{
+  if ([[self windowMode] isEqual:@"tiling"])
+    return NO;
+  return [[self effectiveValueForKey:FVDesktopIconsKey] isEqual:@"show"];
 }
 
 /* ---- WindowServer ---- */
@@ -502,6 +522,7 @@ FVLabel (NSRect frame, NSString *text)
                   : [key isEqual:FVScrollerStyleKey] ? FVTagScrollerStyle
                   : [key isEqual:FVAppearanceKey]   ? FVTagAppearance
                   : [key isEqual:FVWindowStyleKey]  ? FVTagWindowStyle
+                  : [key isEqual:FVDesktopIconsKey] ? FVTagDesktopIcons
                                                     : FVTagMode;
   return [self popUpWithTag:tag label:title row:y action:@selector (choose:)];
 }
@@ -567,6 +588,8 @@ FVLabel (NSRect frame, NSString *text)
   windowStylePopUp = [self popUpForKey:FVWindowStyleKey label:@"Window style:" row:y];
   y -= step;
   appearancePopUp = [self popUpForKey:FVAppearanceKey label:@"Appearance:" row:y];
+  y -= step;
+  desktopIconsPopUp = [self popUpForKey:FVDesktopIconsKey label:@"Desktop icons:" row:y];
 
   /* Tiling: WindowServer's own settings (apps-windowserver, "Window
      tiling"), used in the tiling mode. */
@@ -655,6 +678,8 @@ FVLabel (NSRect frame, NSString *text)
       return FVAppearanceKey;
     case FVTagWindowStyle:
       return FVWindowStyleKey;
+    case FVTagDesktopIcons:
+      return FVDesktopIconsKey;
     default:
       return FVMenuStyleKey;
     }
@@ -683,7 +708,9 @@ FVLabel (NSRect frame, NSString *text)
       theme = [[self class] dockPosition:theme inMode:mode];
     }
   [popUp removeAllItems];
-  [popUp addItemWithTitle:[NSString stringWithFormat:@"Use theme default (%@)",
+  [popUp addItemWithTitle:[NSString stringWithFormat:[key isEqual:FVDesktopIconsKey]
+                                                          ? @"Use style default (%@)"
+                                                          : @"Use theme default (%@)",
       FVTitleForValue (key, theme)]];
   [[popUp lastItem] setRepresentedObject:nil];
   for (i = 0; i < [values count]; i++)
@@ -732,6 +759,7 @@ FVLabel (NSRect frame, NSString *text)
   [self fillPopUp:scrollerStylePopUp];
   [self fillPopUp:windowStylePopUp];
   [self fillPopUp:appearancePopUp];
+  [self fillPopUp:desktopIconsPopUp];
 
   /* The preset the settings match, if any. */
   NSString *mode = [[self class] windowMode];
@@ -768,6 +796,9 @@ FVLabel (NSRect frame, NSString *text)
   /* Tiling sets the menus by the window style: the picker does not
      apply. */
   [menuPopUp setEnabled:!tiling];
+  [desktopIconsPopUp setEnabled:!tiling];
+  [desktopIconsPopUp setToolTip:tiling ? @"Tiling doesn't show desktop icons: "
+                                         @"the windows cover the desktop." : nil];
   [menuPopUp setToolTip:tiling ? @"Tiling uses the Mac menu bar in the Mac style, "
                                  @"and menus in each window in the Windows style." : nil];
 }
@@ -988,6 +1019,9 @@ FVLabel (NSRect frame, NSString *text)
   if ([values objectForKey:FVWindowStyleKey])
     [self postChangeOfKey:FVWindowStyleKey
                     value:[[self class] effectiveValueForKey:FVWindowStyleKey]];
+  if ([values objectForKey:FVDesktopIconsKey])
+    [self postChangeOfKey:FVDesktopIconsKey
+                    value:[[self class] effectiveValueForKey:FVDesktopIconsKey]];
   if ([values objectForKey:FVScrollerStyleKey])
     {
       /* Running apps re-read GNUstep's keys and lay out their scrollers
@@ -999,8 +1033,10 @@ FVLabel (NSRect frame, NSString *text)
   if (modeChanged && ![mode isEqual:@"tiling"])
     [self performSelector:@selector (sendWindowMode:) withObject:mode afterDelay:0.75];
   [[self class] syncFocusFollowsMouse];
-  /* The menu style decides whether the Dock can be at the top. */
-  if ([values objectForKey:FVWindowModeKey] || [values objectForKey:FVMenuStyleKey])
+  /* The menu style decides whether the Dock can be at the top; the style
+     and the mode, whether there are desktop icons. */
+  if ([values objectForKey:FVWindowModeKey] || [values objectForKey:FVMenuStyleKey]
+      || [values objectForKey:FVWindowStyleKey])
     [self refresh];
 }
 
@@ -1021,18 +1057,18 @@ FVLabel (NSRect frame, NSString *text)
         @"stacking", FVWindowModeKey, @"nextstep", FVMenuStyleKey,
         theme, FVDockPositionKey, theme, FVMinimizeStyleKey,
         theme, FVDockStyleKey, theme, FVScrollerStyleKey,
-        theme, FVWindowStyleKey, nil];
+        theme, FVWindowStyleKey, theme, FVDesktopIconsKey, nil];
   else if (preset == 1)
     values = [NSDictionary dictionaryWithObjectsAndKeys:
         @"stacking", FVWindowModeKey, @"macmenubar", FVMenuStyleKey,
         @"bottom", FVDockPositionKey, @"dock", FVMinimizeStyleKey,
         @"mac", FVDockStyleKey, @"mac", FVScrollerStyleKey,
-        @"mac", FVWindowStyleKey, nil];
+        @"mac", FVWindowStyleKey, theme, FVDesktopIconsKey, nil];
   else
     values = [NSDictionary dictionaryWithObjectsAndKeys:
         @"inwindow", FVMenuStyleKey, @"bottom", FVDockPositionKey,
         @"dock", FVMinimizeStyleKey, @"tiling", FVDockStyleKey,
-        @"split", FVScrollerStyleKey, @"tiling", FVWindowStyleKey, nil];
+        @"split", FVScrollerStyleKey, @"tiling", FVWindowStyleKey, theme, FVDesktopIconsKey, nil];
   [self applyValues:values];
   [self stackInNeXTStyle];
   [self refresh];
@@ -1093,6 +1129,7 @@ FVLabel (NSRect frame, NSString *text)
   RELEASE (menuPopUp);
   RELEASE (dockStylePopUp);
   RELEASE (scrollerStylePopUp);
+  RELEASE (desktopIconsPopUp);
   RELEASE (windowStylePopUp);
   RELEASE (appearancePopUp);
   RELEASE (presetButtons);

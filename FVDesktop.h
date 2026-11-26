@@ -23,12 +23,19 @@
  * The desktop is Workspace's, as it is the Finder's on macOS: a clear
  * window on every display, just above the desktop background (whose
  * windows let the pointer through), takes the clicks on the desktop.
- * Clicking it brings Workspace forward; right-clicking it shows
- * Workspace's menu. Desktop icons will go here.
+ * Clicking it brings Workspace forward.
+ *
+ * With desktop icons on (FVDesktopSettings +desktopIconsShown) the main
+ * display's window shows the startup disk as "NextBSD", the disks
+ * connected in /Volumes, and what's in ~/Desktop, with right-click menus
+ * for them and for the desktop. Otherwise right-clicking it shows
+ * Workspace's menu.
  */
+@class FVDesktopView;
 @interface FVDesktop : NSObject
 {
   NSMutableArray *windows;
+  FVDesktopView *iconView;
 }
 
 + (FVDesktop *)sharedDesktop;

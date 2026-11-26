@@ -27,6 +27,7 @@
 #import "FVThumbnails.h"
 #import "FVPanels.h"
 #import "FVInspector.h"
+#import "FVEject.h"
 #include <sys/statvfs.h>
 #include <sys/stat.h>
 #ifndef __linux__
@@ -35,6 +36,9 @@
 #include <sys/mount.h>
 #endif
 #include <dirent.h>
+#include <errno.h>
+#include <string.h>
+#include <unistd.h>
 
 /* The viewer background follows the theme; it is not a preference. A
    ViewerBackgroundColor saved by older versions is ignored. On a dark
@@ -222,7 +226,7 @@ FVApplicationBundles (NSArray *paths)
 /* A volume is a mount point directly inside a mount root. On the BSDs the
    mount table is read without waiting, and nothing is stat'ed, so a hung
    network mount can't block the main thread, which polls this every second. */
-static NSArray *
+NSArray *
 FVVolumesInMountRoots (void)
 {
   NSMutableArray *found = [NSMutableArray array];
@@ -1006,12 +1010,15 @@ FVClickStayedPut (NSEvent *down)
 }
 
 /* Right-clicking an item selects it, unless it's already selected, and
-   shows the item menu. */
+   shows the item menu; right-clicking below the rows shows the folder's. */
 - (NSMenu *)menuForEvent:(NSEvent *)event
 {
   NSInteger row = [self rowAtPoint:[self convertPoint:[event locationInWindow] fromView:nil]];
   if (row < 0)
-    return nil;
+    {
+      [self deselectAll:nil];
+      return [(FVWindow *)[self target] backgroundMenu];
+    }
   if (![self isRowSelected:row])
     [self selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];
   return [(FVWindow *)[self target] itemMenu];
@@ -2057,7 +2064,8 @@ FVClickStayedPut (NSEvent *down)
           && ![[item objectForKey:@"group"] isEqual:@"domain"]))
     {
       /* Do not contact a possibly disconnected server just to draw its icon. */
-      [cell setImage:[NSImage imageNamed:@"HardDisk"]];
+      NSImage *disk = [NSImage imageNamed:@"RemovableDisk"];
+      [cell setImage:disk ? disk : [NSImage imageNamed:@"HardDisk"]];
       return;
     }
   if ([p isEqual:FVRecentsLocation])
@@ -2228,6 +2236,8 @@ FVClickStayedPut (NSEvent *down)
 
 - (NSArray *)selectedPaths
 {
+  if (selectionOverride)
+    return selectionOverride;
   NSMutableArray *result = [NSMutableArray array];
   if (mode == 1 && [browser selectedColumn] >= 0)
     {
@@ -2684,6 +2694,14 @@ FVClickStayedPut (NSEvent *down)
       NSImage *rootIcon = [NSImage imageNamed:@"Root_PC"];
       return rootIcon ? rootIcon : [NSImage imageNamed:@"common_Root_PC"];
     }
+  /* The startup disk's own folders, in the theme's style. */
+  if ([value isEqual:@"/Developer"] || [value isEqual:@"/Volumes"])
+    {
+      NSImage *folderIcon = [NSImage imageNamed:[value isEqual:@"/Developer"]
+          ? @"common_DeveloperFolder" : @"common_VolumesFolder"];
+      if (folderIcon)
+        return folderIcon;
+    }
   if ([value isEqual:@"/Local"] || [value isEqual:@"/Network"])
     {
       NSImage *domainIcon = [NSImage imageNamed:[value isEqual:@"/Local"]
@@ -2694,7 +2712,10 @@ FVClickStayedPut (NSEvent *down)
         return domainIcon;
     }
   if ([mountedVolumePaths containsObject:FVStandardizedPath (value)])
-    return [NSImage imageNamed:@"HardDisk"];
+    {
+      NSImage *disk = [NSImage imageNamed:@"RemovableDisk"];
+      return disk ? disk : [NSImage imageNamed:@"HardDisk"];
+    }
   if ([FVThumbnailOperation enabled] && [FVThumbnailOperation supportsPath:value])
     {
       NSImage *preview = [thumbnailCache objectForKey:value];
@@ -3123,14 +3144,18 @@ FVClickStayedPut (NSEvent *down)
   NSMenu *menu = AUTORELEASE ([[NSMenu alloc] initWithTitle:@"File"]);
   /* No separators: GNUstep draws them as empty items, and Workspace's other
      menus have none. */
-  NSArray *titles = [NSArray arrayWithObjects:@"Open", @"Open With…", @"Show Package Contents",
-                                              @"Get Info", @"Rename", @"Add to Dock",
-                                              @"Add to Favorites", @"Copy", @"Duplicate",
-                                              @"Move to Trash", nil];
-  NSArray *actions = [NSArray arrayWithObjects:@"open:", @"openWith:", @"packageContents:",
-                                               @"info:", @"rename:", @"addToDock:",
-                                               @"addFavorite:", @"copy:", @"duplicate:",
-                                               @"trash:", nil];
+  NSMutableArray *titles = [NSMutableArray arrayWithObjects:@"Open", @"Open With…",
+      @"Show Package Contents", @"Get Info", @"Rename", @"Make Alias", @"Add to Dock",
+      @"Add to Favorites", @"Copy", @"Duplicate", @"Move to Trash", nil];
+  NSMutableArray *actions = [NSMutableArray arrayWithObjects:@"open:", @"openWith:",
+      @"packageContents:", @"info:", @"rename:", @"makeAlias:", @"addToDock:",
+      @"addFavorite:", @"copy:", @"duplicate:", @"trash:", nil];
+  /* Disks get Eject in place of the items that don't apply to them. */
+  if (FVCanEjectPaths ([self selectedPaths]))
+    {
+      [titles setArray:[NSArray arrayWithObjects:@"Open", @"Get Info", @"Eject", nil]];
+      [actions setArray:[NSArray arrayWithObjects:@"open:", @"info:", @"eject:", nil]];
+    }
   NSUInteger i;
   for (i = 0; i < [titles count]; i++)
     {
@@ -3142,6 +3167,60 @@ FVClickStayedPut (NSEvent *down)
       [menu addItem:item];
     }
   return menu;
+}
+
+- (NSMenu *)backgroundMenu
+{
+  if ([path isEqual:FVRecentsLocation])
+    return nil;
+  NSMenu *menu = AUTORELEASE ([[NSMenu alloc] initWithTitle:@"Folder"]);
+  [[menu addItemWithTitle:@"New Folder" action:@selector (newFolder:) keyEquivalent:@""]
+      setTarget:self];
+  [[menu addItemWithTitle:@"Paste Item" action:@selector (paste:) keyEquivalent:@""]
+      setTarget:self];
+  return menu;
+}
+
+- (void)setSelectionOverride:(NSArray *)paths
+{
+  ASSIGNCOPY (selectionOverride, paths);
+}
+
+/* Make Alias puts a symbolic link to each item next to it, named
+   "<name> alias", as the Finder does. */
+- (void)makeAlias:(id)sender
+{
+  NSArray *selected = [self selectedPaths];
+  NSUInteger i;
+  for (i = 0; i < [selected count]; i++)
+    {
+      NSString *source = [selected objectAtIndex:i];
+      NSString *folder = [source stringByDeletingLastPathComponent];
+      NSString *name = [[source lastPathComponent] stringByAppendingString:@" alias"];
+      NSString *target = [folder stringByAppendingPathComponent:name];
+      NSUInteger n = 2;
+      struct stat st;
+      while (lstat ([target fileSystemRepresentation], &st) == 0)
+        target = [folder stringByAppendingPathComponent:
+                             [NSString stringWithFormat:@"%@ %lu", name, (unsigned long)n++]];
+      if (symlink ([source fileSystemRepresentation], [target fileSystemRepresentation]) != 0)
+        {
+          FVRunAlert (@"Workspace", @"Can’t Make Alias",
+                      [NSString stringWithFormat:@"An alias of “%@” can’t be made here: %s.",
+                                                 [source lastPathComponent], strerror (errno)],
+                      @"OK", nil);
+          break;
+        }
+    }
+  [self refresh:nil];
+}
+
+- (void)eject:(id)sender
+{
+  NSArray *selected = [self selectedPaths];
+  NSUInteger i;
+  for (i = 0; i < [selected count]; i++)
+    FVEjectVolume ([selected objectAtIndex:i]);
 }
 
 - (void)removeFavorite:(id)sender
@@ -3711,7 +3790,7 @@ FVClickStayedPut (NSEvent *down)
   for (i = 0; i < [names count]; i++)
     {
       NSString *name = [names objectAtIndex:i];
-      if ([[request objectForKey:@"hidden"] boolValue] || ![name hasPrefix:@"."])
+      if ([[request objectForKey:@"hidden"] boolValue] || !FVNameIsHidden (folder, name))
         [rows addObject:[FVItem itemAtPath:[folder stringByAppendingPathComponent:name]]];
     }
   NSMutableDictionary *result = [NSMutableDictionary dictionaryWithDictionary:request];
@@ -3917,7 +3996,7 @@ FVClickStayedPut (NSEvent *down)
       for (j = 0; j < [names count]; j++)
         {
           NSString *name = [names objectAtIndex:j];
-          if (!showHidden && [name hasPrefix:@"."])
+          if (!showHidden && FVNameIsHidden (folder, name))
             continue;
           [entries setObject:FVFileStamp ([folder stringByAppendingPathComponent:name], NO)
                       forKey:name];
@@ -4012,6 +4091,10 @@ FVClickStayedPut (NSEvent *down)
       || action == @selector (trash:) || action == @selector (deletePermanently:)
       || action == @selector (duplicate:) || action == @selector (moveTo:))
     return count > 0 && !operation;
+  if (action == @selector (makeAlias:))
+    return count > 0 && !operation && ![path isEqual:FVRecentsLocation];
+  if (action == @selector (eject:))
+    return FVCanEjectPaths ([self selectedPaths]);
   if (action == @selector (paste:))
     return !operation &&
            [[[NSPasteboard generalPasteboard] types] containsObject:NSFilenamesPboardType];
@@ -4058,6 +4141,7 @@ FVClickStayedPut (NSEvent *down)
   RELEASE (iconCache);
   RELEASE (placeIcons);
   RELEASE (mountedVolumePaths);
+  RELEASE (selectionOverride);
   RELEASE (errors);
   RELEASE (savedSelection);
   RELEASE (savedBrowserSelection);

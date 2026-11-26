@@ -25,6 +25,9 @@ NSColor *FVViewerTextColor (void);
 /* An alert panel with a window title, so WindowServer's title bar is not blank. */
 NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
                       NSString *defaultButton, NSString *alternateButton);
+/* The mounted volumes: mount points directly inside /Volumes, /media and the
+   like. */
+NSArray *FVVolumesInMountRoots (void);
 
 @class FVOperations, FVIconView;
 @interface FVWindow : NSWindowController <NSTextFieldDelegate>
@@ -92,6 +95,7 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
   NSString *editingPath;
   NSString *revealPath;
   BOOL editRevealed;
+  NSArray *selectionOverride;
 }
 
 - (id)initWithPath:(NSString *)value;
@@ -109,6 +113,22 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
 - (void)selectionChanged;
 /* The context menu for the selected items, or nil when nothing is selected. */
 - (NSMenu *)itemMenu;
+/* The context menu for the folder itself: New Folder, Paste Item. */
+- (NSMenu *)backgroundMenu;
+/* Paths the item actions use instead of the view's selection, or nil. The
+   desktop uses a viewer this way for its own icons. */
+- (void)setSelectionOverride:(NSArray *)paths;
+- (void)openWith:(id)sender;
+- (void)info:(id)sender;
+- (void)addToDock:(id)sender;
+- (void)addFavorite:(id)sender;
+- (void)copy:(id)sender;
+- (void)cut:(id)sender;
+- (void)paste:(id)sender;
+- (void)duplicate:(id)sender;
+- (void)trash:(id)sender;
+- (void)makeAlias:(id)sender;
+- (void)eject:(id)sender;
 - (NSImage *)iconForPath:(NSString *)value;
 - (BOOL)allowsFileDrop;
 - (void)runOperation:(NSString *)kind paths:(NSArray *)sources destination:(NSString *)destination;

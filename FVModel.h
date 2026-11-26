@@ -22,6 +22,11 @@
 extern NSString * const FVRecentsLocation;
 BOOL FVFilenameTooltipsEnabled (void);
 BOOL FVExcludeRunFilesystems (void);
+/* Whether a name in a folder is hidden unless hidden files are shown: a
+   dot file anywhere, and at the top of the startup disk everything but the
+   folders NextBSD makes (Local, Network, System, Volumes, Developer), as a
+   Mac shows only its own folders there. */
+BOOL FVNameIsHidden (NSString *folder, NSString *name);
 
 @interface FVMounts : NSObject
 

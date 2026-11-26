@@ -49,6 +49,7 @@ extern NSString *const FVDesktopSettingsChangedNotification;
   NSPopUpButton *scrollerStylePopUp;
   NSPopUpButton *windowStylePopUp;
   NSPopUpButton *appearancePopUp;
+  NSPopUpButton *desktopIconsPopUp;
   NSMutableArray *presetButtons;
   NSPopUpButton *layoutPopUp;
   NSPopUpButton *innerGapPopUp;
@@ -71,6 +72,10 @@ extern NSString *const FVDesktopSettingsChangedNotification;
    changed, or the defaults were written elsewhere). */
 + (void)syncWindowServer;
 + (void)syncScrollerStyle;
+/* Whether the desktop shows files and disks: the user's NBDesktopIcons,
+   else the style's default (Mac and Windows yes, NeXT no); never while
+   tiling. */
++ (BOOL)desktopIconsShown;
 /* Tiling's focus follows the pointer except with the Mac menu bar. */
 + (void)syncFocusFollowsMouse;
 

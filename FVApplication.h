@@ -45,5 +45,6 @@
 - (void)openPath:(NSString *)path;
 - (void)viewerBecameKey:(id)controller;
 - (void)preferences:(id)sender;
+- (void)showBackgroundPreferences:(id)sender;
 
 @end
