@@ -42,6 +42,20 @@ FVFilenameTooltipsEnabled (void)
 }
 
 BOOL
+FVNameIsHidden (NSString *folder, NSString *name)
+{
+  static NSSet *shown;
+  if ([name hasPrefix:@"."])
+    return YES;
+  if (![[folder stringByStandardizingPath] isEqual:@"/"])
+    return NO;
+  if (shown == nil)
+    shown = [[NSSet alloc] initWithObjects:@"Local", @"Network", @"System", @"Volumes",
+                                           @"Developer", nil];
+  return ![shown containsObject:name];
+}
+
+BOOL
 FVExcludeRunFilesystems (void)
 {
   id value = [[NSUserDefaults standardUserDefaults] objectForKey:@"ExcludeRunFilesystems"];
@@ -558,6 +572,11 @@ FVListDate (NSDate *date)
           NSString *name = [[NSFileManager defaultManager]
               stringWithFileSystemRepresentation:entry->d_name
                                           length:strlen (entry->d_name)];
+          if (!hidden && FVNameIsHidden (folder, name))
+            {
+              RELEASE (entryPool);
+              continue;
+            }
           if (!name || strcmp ([name fileSystemRepresentation], entry -> d_name))
             {
               [errors

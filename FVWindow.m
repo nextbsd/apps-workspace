@@ -3782,7 +3782,7 @@ FVClickStayedPut (NSEvent *down)
   for (i = 0; i < [names count]; i++)
     {
       NSString *name = [names objectAtIndex:i];
-      if ([[request objectForKey:@"hidden"] boolValue] || ![name hasPrefix:@"."])
+      if ([[request objectForKey:@"hidden"] boolValue] || !FVNameIsHidden (folder, name))
         [rows addObject:[FVItem itemAtPath:[folder stringByAppendingPathComponent:name]]];
     }
   NSMutableDictionary *result = [NSMutableDictionary dictionaryWithDictionary:request];
@@ -3988,7 +3988,7 @@ FVClickStayedPut (NSEvent *down)
       for (j = 0; j < [names count]; j++)
         {
           NSString *name = [names objectAtIndex:j];
-          if (!showHidden && [name hasPrefix:@"."])
+          if (!showHidden && FVNameIsHidden (folder, name))
             continue;
           [entries setObject:FVFileStamp ([folder stringByAppendingPathComponent:name], NO)
                       forKey:name];
