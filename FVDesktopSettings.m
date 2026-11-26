@@ -37,6 +37,12 @@ static NSString *const FVDockStyleKey = @"NBDockStyle";
    side) and GSScrollerArrowsSameEnd (the arrows); Workspace writes them
    in NSGlobalDomain from this one. */
 static NSString *const FVScrollerStyleKey = @"NBScrollerStyle";
+/* NBAppearance (dark or light) and NBWindowStyle (the title bar buttons:
+   NeXT, Mac traffic lights, or Tiling's minimize, maximize and close at
+   the right) are the theme's to draw; it redraws every app at once when
+   told of a change. */
+static NSString *const FVAppearanceKey = @"NBAppearance";
+static NSString *const FVWindowStyleKey = @"NBWindowStyle";
 
 /* The per-mode dictionaries, { stacking = {...}; tiling = {...}; }: the
    user's in NSGlobalDomain, the theme's in its Info.plist. */
@@ -79,7 +85,9 @@ enum
   FVTagInnerGap,
   FVTagOuterGap,
   FVTagDockStyle,
-  FVTagScrollerStyle
+  FVTagScrollerStyle,
+  FVTagAppearance,
+  FVTagWindowStyle
 };
 
 /* The settings shown here: their values (in menu order), the titles for
@@ -99,6 +107,10 @@ FVAllowedValues (NSString *key)
     return [NSArray arrayWithObjects:@"nextstep", @"mac", @"tiling", nil];
   if ([key isEqual:FVScrollerStyleKey])
     return [NSArray arrayWithObjects:@"nextstep", @"mac", @"split", nil];
+  if ([key isEqual:FVAppearanceKey])
+    return [NSArray arrayWithObjects:@"dark", @"light", nil];
+  if ([key isEqual:FVWindowStyleKey])
+    return [NSArray arrayWithObjects:@"nextstep", @"mac", @"tiling", nil];
   return nil;
 }
 
@@ -120,6 +132,10 @@ FVValueTitles (NSString *key)
   if ([key isEqual:FVScrollerStyleKey])
     return [NSArray arrayWithObjects:@"NeXT (left)", @"Mac (right)",
                                      @"Right, arrows apart", nil];
+  if ([key isEqual:FVAppearanceKey])
+    return [NSArray arrayWithObjects:@"Dark", @"Light", nil];
+  if ([key isEqual:FVWindowStyleKey])
+    return [NSArray arrayWithObjects:@"NeXT", @"Mac", @"Optimized for Tiling", nil];
   return nil;
 }
 
@@ -137,6 +153,10 @@ FVBuiltinValue (NSString *key)
   if ([key isEqual:FVDockStyleKey])
     return @"nextstep";
   if ([key isEqual:FVScrollerStyleKey])
+    return @"nextstep";
+  if ([key isEqual:FVAppearanceKey])
+    return @"dark";
+  if ([key isEqual:FVWindowStyleKey])
     return @"nextstep";
   return nil;
 }
@@ -460,6 +480,8 @@ FVLabel (NSRect frame, NSString *text)
                   : [key isEqual:FVMenuStyleKey]    ? FVTagMenu
                   : [key isEqual:FVDockStyleKey]    ? FVTagDockStyle
                   : [key isEqual:FVScrollerStyleKey] ? FVTagScrollerStyle
+                  : [key isEqual:FVAppearanceKey]   ? FVTagAppearance
+                  : [key isEqual:FVWindowStyleKey]  ? FVTagWindowStyle
                                                     : FVTagMode;
   return [self popUpWithTag:tag label:title row:y action:@selector (choose:)];
 }
@@ -521,6 +543,10 @@ FVLabel (NSRect frame, NSString *text)
      at the bottom, or on the right as on a Mac, with the arrows together
      or one at each end. */
   scrollerStylePopUp = [self popUpForKey:FVScrollerStyleKey label:@"Scroller style:" row:y];
+  y -= step;
+  windowStylePopUp = [self popUpForKey:FVWindowStyleKey label:@"Window style:" row:y];
+  y -= step;
+  appearancePopUp = [self popUpForKey:FVAppearanceKey label:@"Appearance:" row:y];
 
   /* Tiling: WindowServer's own settings (apps-windowserver, "Window
      tiling"), used in the tiling mode. */
@@ -605,6 +631,10 @@ FVLabel (NSRect frame, NSString *text)
       return FVDockStyleKey;
     case FVTagScrollerStyle:
       return FVScrollerStyleKey;
+    case FVTagAppearance:
+      return FVAppearanceKey;
+    case FVTagWindowStyle:
+      return FVWindowStyleKey;
     default:
       return FVMenuStyleKey;
     }
@@ -671,6 +701,8 @@ FVLabel (NSRect frame, NSString *text)
   [self fillPopUp:minimizePopUp];
   [self fillPopUp:dockStylePopUp];
   [self fillPopUp:scrollerStylePopUp];
+  [self fillPopUp:windowStylePopUp];
+  [self fillPopUp:appearancePopUp];
 
   /* The preset the settings match, if any. */
   NSString *mode = [[self class] windowMode];
@@ -911,6 +943,12 @@ FVLabel (NSRect frame, NSString *text)
   if ([values objectForKey:FVDockStyleKey])
     [self postChangeOfKey:FVDockStyleKey
                     value:[[self class] effectiveValueForKey:FVDockStyleKey]];
+  if ([values objectForKey:FVAppearanceKey])
+    [self postChangeOfKey:FVAppearanceKey
+                    value:[[self class] effectiveValueForKey:FVAppearanceKey]];
+  if ([values objectForKey:FVWindowStyleKey])
+    [self postChangeOfKey:FVWindowStyleKey
+                    value:[[self class] effectiveValueForKey:FVWindowStyleKey]];
   if ([values objectForKey:FVScrollerStyleKey])
     {
       /* Running apps re-read GNUstep's keys and lay out their scrollers
@@ -939,17 +977,19 @@ FVLabel (NSRect frame, NSString *text)
     values = [NSDictionary dictionaryWithObjectsAndKeys:
         @"stacking", FVWindowModeKey, @"nextstep", FVMenuStyleKey,
         theme, FVDockPositionKey, theme, FVMinimizeStyleKey,
-        theme, FVDockStyleKey, theme, FVScrollerStyleKey, nil];
+        theme, FVDockStyleKey, theme, FVScrollerStyleKey,
+        theme, FVWindowStyleKey, nil];
   else if (preset == 1)
     values = [NSDictionary dictionaryWithObjectsAndKeys:
         @"stacking", FVWindowModeKey, @"macmenubar", FVMenuStyleKey,
         @"bottom", FVDockPositionKey, @"dock", FVMinimizeStyleKey,
-        @"mac", FVDockStyleKey, @"mac", FVScrollerStyleKey, nil];
+        @"mac", FVDockStyleKey, @"mac", FVScrollerStyleKey,
+        @"mac", FVWindowStyleKey, nil];
   else
     values = [NSDictionary dictionaryWithObjectsAndKeys:
         @"tiling", FVWindowModeKey, theme, FVDockPositionKey,
         theme, FVMinimizeStyleKey, @"tiling", FVDockStyleKey,
-        theme, FVScrollerStyleKey, nil];
+        theme, FVScrollerStyleKey, @"tiling", FVWindowStyleKey, nil];
   [self applyValues:values];
   [self refresh];
 }
@@ -1000,6 +1040,8 @@ FVLabel (NSRect frame, NSString *text)
   RELEASE (menuPopUp);
   RELEASE (dockStylePopUp);
   RELEASE (scrollerStylePopUp);
+  RELEASE (windowStylePopUp);
+  RELEASE (appearancePopUp);
   RELEASE (presetButtons);
   RELEASE (layoutPopUp);
   RELEASE (innerGapPopUp);
