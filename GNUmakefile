@@ -3,8 +3,8 @@ ifeq ($(GNUSTEP_MAKEFILES),)
 endif
 include $(GNUSTEP_MAKEFILES)/common.make
 APP_NAME = Workspace
-Workspace_OBJC_FILES = main.m FVApplication.m FVWindow.m FVModel.m FVOperations.m FVIconView.m FVLauncher.m FVThumbnails.m FVPanels.m FVInspector.m FVDesktopSettings.m FVBackground.m FVBackgroundSettings.m FVDesktop.m FVDockSettings.m
-Workspace_HEADER_FILES = FVApplication.h FVWindow.h FVModel.h FVOperations.h FVIconView.h FVLauncher.h FVThumbnails.h FVPanels.h FVInspector.h FVDesktopSettings.h FVBackground.h FVBackgroundSettings.h FVDesktop.h FVDockSettings.h
+Workspace_OBJC_FILES = main.m FVApplication.m FVWindow.m FVModel.m FVOperations.m FVIconView.m FVLauncher.m FVThumbnails.m FVPanels.m FVInspector.m FVDesktopSettings.m FVBackground.m FVBackgroundSettings.m FVDesktop.m FVDockSettings.m FVRewind.m
+Workspace_HEADER_FILES = FVApplication.h FVWindow.h FVModel.h FVOperations.h FVIconView.h FVLauncher.h FVThumbnails.h FVPanels.h FVInspector.h FVDesktopSettings.h FVBackground.h FVBackgroundSettings.h FVDesktop.h FVDockSettings.h FVRewind.h
 Workspace_RESOURCE_FILES = Resources/Workspace.png Resources/HardDisk.tiff Resources/WorkspaceHelp.rtf \
   Background/obj/WorkspaceBackground
 Workspace_APPLICATION_ICON = Workspace.png

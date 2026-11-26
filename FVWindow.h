@@ -58,6 +58,8 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
   NSScrollView *sideScroll;
   NSArray *modeButtons;
   NSButton *backButton, *forwardButton, *upButton;
+  id rewind;
+  NSButton *snapshotsButton, *rewindButton;
   NSBrowser *browser;
   FVIconView *icons;
   NSMutableDictionary *browserRows;
