@@ -310,7 +310,12 @@
     return;
   unichar c = [text characterAtIndex:0];
   NSInteger next = [selection count] ? focusedIndex : 0;
-  if (c == NSRightArrowFunctionKey)
+  BOOL arrow = c == NSRightArrowFunctionKey || c == NSLeftArrowFunctionKey
+            || c == NSDownArrowFunctionKey || c == NSUpArrowFunctionKey;
+  /* Nothing chosen yet: any arrow chooses the first item. */
+  if (arrow && ![selection count])
+    ;
+  else if (c == NSRightArrowFunctionKey)
     next++;
   else if (c == NSLeftArrowFunctionKey)
     next--;

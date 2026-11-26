@@ -1554,6 +1554,14 @@ FVClickStayedPut (NSEvent *down)
         [self columnMode:nil];
       else if (savedMode == 2)
         [self iconMode:nil];
+      /* A new viewer takes the keys in its files, not the search field:
+         the arrows choose and Return opens straight away. */
+      {
+        NSView *files = mode == 1 ? (NSView *)browser
+                      : mode == 2 ? (NSView *)icons : (NSView *)table;
+        [[self window] setInitialFirstResponder:files];
+        [[self window] makeFirstResponder:files];
+      }
       monitor = RETAIN ([NSTimer scheduledTimerWithTimeInterval:1
                                                   target:self
                                                 selector:@selector (checkDirectory:)
