@@ -54,13 +54,14 @@ FVCreateStandardUserFolders (void)
         withIntermediateDirectories:YES attributes:nil error:NULL];
 }
 
-/* At login, links in ~/Applications to Software and Terminal (in
+/* At login, links in ~/Applications to Software, Terminal and TextEdit (in
    /System/Applications, by absolute path, so they hold whether the home is
    under /Network or /Local), wherever one is missing. */
 static void
 FVPlaceApplicationLinks (void)
 {
-  NSArray *apps = [NSArray arrayWithObjects:@"Software.app", @"Terminal.app", nil];
+  NSArray *apps = [NSArray arrayWithObjects:@"Software.app", @"Terminal.app",
+                                             @"TextEdit.app", nil];
   NSFileManager *fm = [NSFileManager defaultManager];
   NSString *folder = [NSHomeDirectory () stringByAppendingPathComponent:@"Applications"];
   NSUInteger i;
@@ -69,10 +70,12 @@ FVPlaceApplicationLinks (void)
     {
       NSString *name = [apps objectAtIndex:i];
       NSString *link = [folder stringByAppendingPathComponent:name];
+      NSString *app = [@"/System/Applications" stringByAppendingPathComponent:name];
 
-      if ([fm fileAttributesAtPath:link traverseLink:NO] == nil)
-        [fm createSymbolicLinkAtPath:link
-                         pathContent:[@"/System/Applications" stringByAppendingPathComponent:name]];
+      /* Only to an app that is there: no dead link on a system without it. */
+      if ([fm fileAttributesAtPath:link traverseLink:NO] == nil
+          && [fm fileExistsAtPath:app])
+        [fm createSymbolicLinkAtPath:link pathContent:app];
     }
 }
 
@@ -110,6 +113,11 @@ FVMigrateFileViewerDefaults (void)
   FVMigrateFileViewerDefaults ();
   FVCreateStandardUserFolders ();
   FVPlaceApplicationLinks ();
+  /* The apps and the file types they open, read again at each login
+     (make_services): an app installed since this account last logged in,
+     or since its first login, opens its files and shows their icons, as
+     on a Mac. */
+  [[NSWorkspace sharedWorkspace] findApplications];
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
   [defaults synchronize];
   NSMutableDictionary *domain = [NSMutableDictionary dictionaryWithDictionary:
