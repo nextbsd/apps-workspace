@@ -442,7 +442,7 @@ FVMigrateFileViewerDefaults (void)
   if (!preferencesPanel)
     {
       preferencesPanel = [[NSPanel alloc]
-          initWithContentRect:NSMakeRect (0, 0, 540, 610)
+          initWithContentRect:NSMakeRect (0, 0, 540, 690)
                     styleMask:NSTitledWindowMask | NSClosableWindowMask
                       backing:NSBackingStoreBuffered defer:NO];
       [preferencesPanel setTitle:@"Preferences"];
@@ -452,7 +452,7 @@ FVMigrateFileViewerDefaults (void)
          size, behavior and status extras. Background: the desktop
          background's module. */
       NSTabView *tabs = AUTORELEASE ([[NSTabView alloc]
-          initWithFrame:NSMakeRect (10, 10, 520, 590)]);
+          initWithFrame:NSMakeRect (10, 10, 520, 670)]);
       [[preferencesPanel contentView] addSubview:tabs];
       NSRect page = [tabs contentRect];
       page.origin = NSZeroPoint;

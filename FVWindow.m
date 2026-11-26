@@ -18,6 +18,7 @@
  */
 
 #import "FVWindow.h"
+#import <GNUstepGUI/GSTheme.h>
 #import "FVApplication.h"
 #import "FVOperations.h"
 #import "FVIconView.h"
@@ -35,10 +36,19 @@
 #include <dirent.h>
 
 /* The viewer background follows the theme; it is not a preference. A
-   ViewerBackgroundColor saved by older versions is ignored. */
+   ViewerBackgroundColor saved by older versions is ignored. On a dark
+   window it is a shade darker than the window; on a light one it is the
+   theme's text background (white), as a Mac's file list is, rather than
+   the window's grey darkened. */
 NSColor *
 FVViewerBackgroundColor (void)
 {
+  NSColor *window = [[NSColor windowBackgroundColor]
+      colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
+  CGFloat brightness = .299 * [window redComponent] + .587 * [window greenComponent]
+                       + .114 * [window blueComponent];
+  if (brightness >= .5)
+    return [NSColor textBackgroundColor];
   return [[NSColor windowBackgroundColor]
       blendedColorWithFraction:.1 ofColor:[NSColor blackColor]];
 }
@@ -1352,6 +1362,10 @@ FVClickStayedPut (NSEvent *down)
       [[NSNotificationCenter defaultCenter] addObserver:self
           selector:@selector (appearancePreferencesChanged:) name:@"FVAppearancePreferencesChanged"
           object:nil];
+      /* A theme change (NextBSD's Dark or Light) changes the colours too. */
+      [[NSNotificationCenter defaultCenter] addObserver:self
+          selector:@selector (appearancePreferencesChanged:) name:GSThemeDidActivateNotification
+                                                            object:nil];
       [self appearancePreferencesChanged:nil];
       [self fitToWidth];
       [self rebuildPlaces];
