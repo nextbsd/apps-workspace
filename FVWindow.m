@@ -19,6 +19,7 @@
 
 #import "FVWindow.h"
 #import <GNUstepGUI/GSTheme.h>
+#import "FVRewind.h"
 #import "FVApplication.h"
 #import "FVOperations.h"
 #import "FVIconView.h"
@@ -400,6 +401,31 @@ FVToolbarImage (NSUInteger kind)
       [glyph lineToPoint:NSMakePoint (7, 17)];
       [glyph moveToPoint:NSMakePoint (13, 3)];
       [glyph lineToPoint:NSMakePoint (13, 17)];
+    }
+  else if (kind == 8)
+    {
+      /* Snapshots: a camera. */
+      [glyph appendBezierPathWithRoundedRect:NSMakeRect (2, 4, 16, 11) xRadius:2 yRadius:2];
+      [glyph moveToPoint:NSMakePoint (7, 15)];
+      [glyph lineToPoint:NSMakePoint (8, 17)];
+      [glyph lineToPoint:NSMakePoint (12, 17)];
+      [glyph lineToPoint:NSMakePoint (13, 15)];
+      [glyph appendBezierPathWithOvalInRect:NSMakeRect (7, 6.5, 6, 6)];
+    }
+  else if (kind == 9)
+    {
+      /* Rewind: a clock with an arrow turning back. */
+      [glyph appendBezierPathWithArcWithCenter:NSMakePoint (10, 10)
+                                       radius:7
+                                   startAngle:150
+                                     endAngle:200
+                                    clockwise:YES];
+      [glyph moveToPoint:NSMakePoint (2, 14)];
+      [glyph lineToPoint:NSMakePoint (3.5, 10.5)];
+      [glyph lineToPoint:NSMakePoint (7, 12)];
+      [glyph moveToPoint:NSMakePoint (10, 14)];
+      [glyph lineToPoint:NSMakePoint (10, 10)];
+      [glyph lineToPoint:NSMakePoint (13, 8)];
     }
   else
     {
@@ -1233,10 +1259,13 @@ FVClickStayedPut (NSEvent *down)
           FVToolbarButton (bar, @"List", @selector (listMode:), self, 204, 5),
           FVToolbarButton (bar, @"Columns", @selector (columnMode:), self, 242, 6),
           FVToolbarButton (bar, @"Icons", @selector (iconMode:), self, 280, 7), nil];
+      /* Snapshots of the home folder, and Rewind (FVRewind). */
+      snapshotsButton = FVToolbarButton (bar, @"Snapshots", @selector (snapshots:), self, 332, 8);
+      rewindButton = FVToolbarButton (bar, @"Rewind", @selector (rewind:), self, 370, 9);
       /* One search field: it filters this folder, or with Subfolders chosen
          searches beneath it by name. */
       filter = [[NSSearchField alloc]
-          initWithFrame:NSMakeRect (332, 2, contentSize.width - 358 - 132, 26)];
+          initWithFrame:NSMakeRect (420, 2, contentSize.width - 446 - 132, 26)];
       [filter setAutoresizingMask:NSViewWidthSizable];
       [filter setTarget:self];
       [filter setAction:@selector (filterChanged:)];
@@ -1627,6 +1656,24 @@ FVClickStayedPut (NSEvent *down)
       part = next;
     }
   [self refresh:nil];
+  [self fitToWidth];
+  [rewind viewerDidNavigate];
+}
+
+/* Snapshots: the home folder's snapshot schedule (FVRewind). */
+- (void)snapshots:(id)sender
+{
+  if (rewind == nil)
+    rewind = [[FVRewind alloc] initWithViewer:self];
+  [rewind showSnapshots:sender];
+}
+
+/* Rewind: earlier versions of this folder, from its snapshots. */
+- (void)rewind:(id)sender
+{
+  if (rewind == nil)
+    rewind = [[FVRewind alloc] initWithViewer:self];
+  [rewind toggleRewind:sender];
 }
 
 - (void)selectFile:(NSString *)value
@@ -2283,12 +2330,16 @@ FVClickStayedPut (NSEvent *down)
   NSButton *button;
   while ((button = [e nextObject]))
     [button setHidden:!showModes];
+  /* Snapshots and Rewind are for the home folder: shown only in it. */
+  BOOL showRewind = showModes && [FVRewind appliesToPath:path];
+  [snapshotsButton setHidden:!showRewind];
+  [rewindButton setHidden:!showRewind];
   [searchScope setHidden:!showScope];
   r = [searchScope frame];
   r.origin.x = barWidth - 128;
   [searchScope setFrame:r];
   r = [filter frame];
-  r.origin.x = showModes ? 332 : 204;
+  r.origin.x = showRewind ? 420 : showModes ? 332 : 204;
   r.size.width = MAX ((showScope ? barWidth - 136 : barWidth) - NSMinX (r), 60);
   [filter setFrame:r];
 
@@ -2327,6 +2378,7 @@ FVClickStayedPut (NSEvent *down)
 
 - (void)windowWillClose:(NSNotification *)note
 {
+  [rewind viewerWillClose];
   [self endEditingName:NO];
   closed = YES;
   [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -3811,6 +3863,7 @@ FVClickStayedPut (NSEvent *down)
   RELEASE (toolbar);
   RELEASE (sideScroll);
   RELEASE (modeButtons);
+  RELEASE (rewind);
   RELEASE (browser);
   RELEASE (icons);
   RELEASE (browserRows);
