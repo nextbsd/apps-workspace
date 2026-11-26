@@ -32,6 +32,11 @@ static NSString *const FVDockPositionKey = @"NBDockPosition";
 static NSString *const FVMenuStyleKey = @"NBMenuStyle";
 static NSString *const FVWindowModeKey = @"NBWindowMode";
 static NSString *const FVDockStyleKey = @"NBDockStyle";
+/* NBScrollerStyle: which side scrollers are on and where their arrows
+   go. GNUstep reads its own two keys, NSScrollViewInterfaceStyle (the
+   side) and GSScrollerArrowsSameEnd (the arrows); Workspace writes them
+   in NSGlobalDomain from this one. */
+static NSString *const FVScrollerStyleKey = @"NBScrollerStyle";
 
 /* The per-mode dictionaries, { stacking = {...}; tiling = {...}; }: the
    user's in NSGlobalDomain, the theme's in its Info.plist. */
@@ -73,7 +78,8 @@ enum
   FVTagLayout,
   FVTagInnerGap,
   FVTagOuterGap,
-  FVTagDockStyle
+  FVTagDockStyle,
+  FVTagScrollerStyle
 };
 
 /* The settings shown here: their values (in menu order), the titles for
@@ -91,6 +97,8 @@ FVAllowedValues (NSString *key)
     return [NSArray arrayWithObjects:@"stacking", @"tiling", nil];
   if ([key isEqual:FVDockStyleKey])
     return [NSArray arrayWithObjects:@"nextstep", @"mac", @"tiling", nil];
+  if ([key isEqual:FVScrollerStyleKey])
+    return [NSArray arrayWithObjects:@"nextstep", @"mac", @"split", nil];
   return nil;
 }
 
@@ -109,6 +117,9 @@ FVValueTitles (NSString *key)
   if ([key isEqual:FVDockStyleKey])
     return [NSArray arrayWithObjects:@"Optimized for NeXT", @"Optimized for Mac",
                                      @"Optimized for Tiling", nil];
+  if ([key isEqual:FVScrollerStyleKey])
+    return [NSArray arrayWithObjects:@"NeXT (left)", @"Mac (right)",
+                                     @"Right, arrows apart", nil];
   return nil;
 }
 
@@ -124,6 +135,8 @@ FVBuiltinValue (NSString *key)
   if ([key isEqual:FVWindowModeKey])
     return @"stacking";
   if ([key isEqual:FVDockStyleKey])
+    return @"nextstep";
+  if ([key isEqual:FVScrollerStyleKey])
     return @"nextstep";
   return nil;
 }
@@ -304,6 +317,29 @@ FVGapValues (void)
     [server performSelector:sel withObject:settings];
 }
 
+/* GNUstep's scroller keys for the scroller style in effect, written when
+   they differ: at login (the theme's default may have changed) and when
+   the setting changes. Apps opened afterwards lay out their scrollers so. */
++ (void)syncScrollerStyle
+{
+  NSString *style = [self effectiveValueForKey:FVScrollerStyleKey];
+  NSString *side = [style isEqual:@"nextstep"] ? @"NSNextStepInterfaceStyle"
+                                               : @"NSMacintoshInterfaceStyle";
+  NSNumber *sameEnd = [NSNumber numberWithBool:![style isEqual:@"split"]];
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  NSMutableDictionary *global = AUTORELEASE ([[defaults persistentDomainForName:NSGlobalDomain]
+      mutableCopy]);
+  if (global == nil)
+    global = [NSMutableDictionary dictionary];
+  if ([side isEqual:[global objectForKey:@"NSScrollViewInterfaceStyle"]]
+      && [sameEnd isEqual:[global objectForKey:@"GSScrollerArrowsSameEnd"]])
+    return;
+  [global setObject:side forKey:@"NSScrollViewInterfaceStyle"];
+  [global setObject:sameEnd forKey:@"GSScrollerArrowsSameEnd"];
+  [defaults setPersistentDomain:global forName:NSGlobalDomain];
+  [defaults synchronize];
+}
+
 + (void)syncWindowServer
 {
   NSString *mode = [self windowMode];
@@ -423,6 +459,7 @@ FVLabel (NSRect frame, NSString *text)
                   : [key isEqual:FVDockPositionKey] ? FVTagDock
                   : [key isEqual:FVMenuStyleKey]    ? FVTagMenu
                   : [key isEqual:FVDockStyleKey]    ? FVTagDockStyle
+                  : [key isEqual:FVScrollerStyleKey] ? FVTagScrollerStyle
                                                     : FVTagMode;
   return [self popUpWithTag:tag label:title row:y action:@selector (choose:)];
 }
@@ -479,6 +516,11 @@ FVLabel (NSRect frame, NSString *text)
      theme's default); Mac, the lines on a see-through panel, as macOS's
      Dock has; Tiling, clear, with the lines. */
   dockStylePopUp = [self popUpForKey:FVDockStyleKey label:@"Dock style:" row:y];
+  y -= step;
+  /* NBScrollerStyle: NeXTSTEP's scrollers on the left with both arrows
+     at the bottom, or on the right as on a Mac, with the arrows together
+     or one at each end. */
+  scrollerStylePopUp = [self popUpForKey:FVScrollerStyleKey label:@"Scroller style:" row:y];
 
   /* Tiling: WindowServer's own settings (apps-windowserver, "Window
      tiling"), used in the tiling mode. */
@@ -561,6 +603,8 @@ FVLabel (NSRect frame, NSString *text)
       return FVWindowModeKey;
     case FVTagDockStyle:
       return FVDockStyleKey;
+    case FVTagScrollerStyle:
+      return FVScrollerStyleKey;
     default:
       return FVMenuStyleKey;
     }
@@ -626,6 +670,7 @@ FVLabel (NSRect frame, NSString *text)
   [self fillPopUp:menuPopUp];
   [self fillPopUp:minimizePopUp];
   [self fillPopUp:dockStylePopUp];
+  [self fillPopUp:scrollerStylePopUp];
 
   /* The preset the settings match, if any. */
   NSString *mode = [[self class] windowMode];
@@ -866,6 +911,8 @@ FVLabel (NSRect frame, NSString *text)
   if ([values objectForKey:FVDockStyleKey])
     [self postChangeOfKey:FVDockStyleKey
                     value:[[self class] effectiveValueForKey:FVDockStyleKey]];
+  if ([values objectForKey:FVScrollerStyleKey])
+    [[self class] syncScrollerStyle];
   if (modeChanged && ![mode isEqual:@"tiling"])
     [self performSelector:@selector (sendWindowMode:) withObject:mode afterDelay:0.75];
   /* The menu style decides whether the Dock can be at the top. */
@@ -886,16 +933,17 @@ FVLabel (NSRect frame, NSString *text)
     values = [NSDictionary dictionaryWithObjectsAndKeys:
         @"stacking", FVWindowModeKey, @"nextstep", FVMenuStyleKey,
         theme, FVDockPositionKey, theme, FVMinimizeStyleKey,
-        theme, FVDockStyleKey, nil];
+        theme, FVDockStyleKey, theme, FVScrollerStyleKey, nil];
   else if (preset == 1)
     values = [NSDictionary dictionaryWithObjectsAndKeys:
         @"stacking", FVWindowModeKey, @"macmenubar", FVMenuStyleKey,
         @"bottom", FVDockPositionKey, @"dock", FVMinimizeStyleKey,
-        @"mac", FVDockStyleKey, nil];
+        @"mac", FVDockStyleKey, @"mac", FVScrollerStyleKey, nil];
   else
     values = [NSDictionary dictionaryWithObjectsAndKeys:
         @"tiling", FVWindowModeKey, theme, FVDockPositionKey,
-        theme, FVMinimizeStyleKey, @"tiling", FVDockStyleKey, nil];
+        theme, FVMinimizeStyleKey, @"tiling", FVDockStyleKey,
+        theme, FVScrollerStyleKey, nil];
   [self applyValues:values];
   [self refresh];
 }
@@ -945,6 +993,7 @@ FVLabel (NSRect frame, NSString *text)
   RELEASE (dockPopUp);
   RELEASE (menuPopUp);
   RELEASE (dockStylePopUp);
+  RELEASE (scrollerStylePopUp);
   RELEASE (presetButtons);
   RELEASE (layoutPopUp);
   RELEASE (innerGapPopUp);

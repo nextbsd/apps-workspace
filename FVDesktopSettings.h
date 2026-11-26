@@ -46,6 +46,7 @@ extern NSString *const FVDesktopSettingsChangedNotification;
   NSPopUpButton *dockPopUp;
   NSPopUpButton *menuPopUp;
   NSPopUpButton *dockStylePopUp;
+  NSPopUpButton *scrollerStylePopUp;
   NSMutableArray *presetButtons;
   NSPopUpButton *layoutPopUp;
   NSPopUpButton *innerGapPopUp;
@@ -67,6 +68,7 @@ extern NSString *const FVDesktopSettingsChangedNotification;
    the user's org.nextbsd.WindowServer defaults say otherwise (the theme
    changed, or the defaults were written elsewhere). */
 + (void)syncWindowServer;
++ (void)syncScrollerStyle;
 
 - (id)initWithFrame:(NSRect)frame;
 - (NSView *)view;
