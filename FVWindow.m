@@ -1656,6 +1656,7 @@ FVClickStayedPut (NSEvent *down)
       part = next;
     }
   [self refresh:nil];
+  [self fitToWidth];
   [rewind viewerDidNavigate];
 }
 
@@ -2329,14 +2330,16 @@ FVClickStayedPut (NSEvent *down)
   NSButton *button;
   while ((button = [e nextObject]))
     [button setHidden:!showModes];
-  [snapshotsButton setHidden:!showModes];
-  [rewindButton setHidden:!showModes];
+  /* Snapshots and Rewind are for the home folder: shown only in it. */
+  BOOL showRewind = showModes && [FVRewind appliesToPath:path];
+  [snapshotsButton setHidden:!showRewind];
+  [rewindButton setHidden:!showRewind];
   [searchScope setHidden:!showScope];
   r = [searchScope frame];
   r.origin.x = barWidth - 128;
   [searchScope setFrame:r];
   r = [filter frame];
-  r.origin.x = showModes ? 420 : 204;
+  r.origin.x = showRewind ? 420 : showModes ? 332 : 204;
   r.size.width = MAX ((showScope ? barWidth - 136 : barWidth) - NSMinX (r), 60);
   [filter setFrame:r];
 

@@ -83,6 +83,13 @@ FVSnapshotTitle (NSString *name)
 
 @implementation FVRewind
 
++ (BOOL)appliesToPath:(NSString *)folder
+{
+  NSString *home = [NSHomeDirectory () stringByStandardizingPath];
+  folder = [folder stringByStandardizingPath];
+  return [folder isEqual:home] || [folder hasPrefix:[home stringByAppendingString:@"/"]];
+}
+
 - (id)initWithViewer:(FVWindow *)aViewer
 {
   if ((self = [super init]) != nil)
@@ -124,6 +131,29 @@ FVSnapshotTitle (NSString *name)
 - (NSString *)sourceName
 {
   return [home hasPrefix:@"/Network/"] ? @"the server" : @"this computer";
+}
+
+/* Snapshots need the home folder to be a ZFS dataset of its own: its
+   .zfs directory is there then (locally, and over NFS for a network home).
+   A home made before homes were datasets is a plain folder, which can't
+   have snapshots; say so rather than taking requests nobody answers. */
+- (BOOL)homeIsDataset
+{
+  return [[NSFileManager defaultManager]
+      fileExistsAtPath:[home stringByAppendingPathComponent:@".zfs"]];
+}
+
+- (BOOL)explainIfNotDataset:(NSString *)title
+{
+  if ([self homeIsDataset])
+    return NO;
+  NSRunAlertPanel (title,
+                   @"Your home folder is a plain folder, not a dataset of its own, so it "
+                   @"can't have snapshots. Homes made before NextBSD gave each person a "
+                   @"dataset need converting on %@ first.",
+                   @"OK", nil, nil,
+                   [home hasPrefix:@"/Network/"] ? @"the directory server" : @"this computer");
+  return YES;
 }
 
 /* ---- the schedule ---- */
@@ -297,6 +327,8 @@ FVRewindCheckbox (NSView *view, NSRect frame, NSString *title)
    Snapshot Now for one at once. */
 - (void)showSnapshots:(id)sender
 {
+  if ([self explainIfNotDataset:@"Snapshots"])
+    return;
   if (schedule == nil)
     [self buildSchedule];
   NSDictionary *s = [self readKeyValues:@"Schedule"];
@@ -580,6 +612,8 @@ FVNewestFirst (id a, id b, void *context)
       [[viewer window] setTitle:@"File Viewer"];
       return;
     }
+  if ([self explainIfNotDataset:@"Rewind"])
+    return;
   if ([self relativeInHome:[viewer currentPath]] == nil)
     {
       NSRunAlertPanel (@"Rewind", @"Rewind shows earlier versions of folders in your home folder.",

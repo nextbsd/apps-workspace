@@ -53,6 +53,9 @@
   NSPopUpButton *freqPopUp, *atPopUp, *keepPopUp;
   NSTextField *statusLabel;
 }
+/* Whether Snapshots and Rewind apply to a folder: the home folder and
+   anything in it (its snapshots included). */
++ (BOOL)appliesToPath:(NSString *)folder;
 - (id)initWithViewer:(FVWindow *)aViewer;
 - (BOOL)isRewinding;
 - (void)showSnapshots:(id)sender;
