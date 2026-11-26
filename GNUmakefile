@@ -9,7 +9,6 @@ Workspace_RESOURCE_FILES = Resources/Workspace.png Resources/HardDisk.tiff Resou
   Background/obj/WorkspaceBackground
 Workspace_APPLICATION_ICON = Workspace.png
 Workspace_OBJCFLAGS = -Wall -Wextra -Wno-unused-parameter
-ADDITIONAL_GUI_LIBS += -lX11 -lXext
 ifneq (,$(findstring linux,$(GNUSTEP_TARGET_OS)))
 ADDITIONAL_GUI_LIBS += -lmount
 endif
