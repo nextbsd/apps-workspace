@@ -111,7 +111,7 @@ FVBackgroundLabel (NSRect frame, NSString *text)
   ASSIGN (modules, [FVBackground moduleNames]);
   [moduleTable reloadData];
   NSString *current = [FVBackground settingForKey:@"currentModule"];
-  NSUInteger row = [modules indexOfObject:current ? current : @"Black"];
+  NSUInteger row = [modules indexOfObject:current ? current : @"SolidColor"];
   if (row != NSNotFound)
     {
       [moduleTable selectRow:row byExtendingSelection:NO];
