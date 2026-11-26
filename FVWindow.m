@@ -2694,6 +2694,14 @@ FVClickStayedPut (NSEvent *down)
       NSImage *rootIcon = [NSImage imageNamed:@"Root_PC"];
       return rootIcon ? rootIcon : [NSImage imageNamed:@"common_Root_PC"];
     }
+  /* The startup disk's own folders, in the theme's style. */
+  if ([value isEqual:@"/Developer"] || [value isEqual:@"/Volumes"])
+    {
+      NSImage *folderIcon = [NSImage imageNamed:[value isEqual:@"/Developer"]
+          ? @"common_DeveloperFolder" : @"common_VolumesFolder"];
+      if (folderIcon)
+        return folderIcon;
+    }
   if ([value isEqual:@"/Local"] || [value isEqual:@"/Network"])
     {
       NSImage *domainIcon = [NSImage imageNamed:[value isEqual:@"/Local"]
