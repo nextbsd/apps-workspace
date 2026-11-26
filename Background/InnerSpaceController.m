@@ -140,8 +140,10 @@ closeSaverWindow(NSWindow *window)
 
 - (void) loadDefaults
 {
+  /* The desktop starts in Solid Color: NeXT slate in Dark, Gershwin's
+     grey in Light (nextbsd/libs-innerspace#20). */
   NSDictionary *appDefs = [NSDictionary dictionaryWithObjectsAndKeys:
-				      @"Black", @"currentModule",
+				      @"SolidColor", @"currentModule",
 				      [NSNumber numberWithFloat: TIME], @"runSpeed",
 				      nil];
   int row = 0;
