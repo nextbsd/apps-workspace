@@ -309,6 +309,18 @@
   if (![text length])
     return;
   unichar c = [text characterAtIndex:0];
+  /* F2 renames, as on Windows; Command-Down opens, as on a Mac. */
+  if (c == NSF2FunctionKey)
+    {
+      if ([selection count] == 1)
+        [owner rename:self];
+      return;
+    }
+  if (c == NSDownArrowFunctionKey && ([event modifierFlags] & NSCommandKeyMask))
+    {
+      [owner open:self];
+      return;
+    }
   NSInteger next = [selection count] ? focusedIndex : 0;
   BOOL arrow = c == NSRightArrowFunctionKey || c == NSLeftArrowFunctionKey
             || c == NSDownArrowFunctionKey || c == NSUpArrowFunctionKey;

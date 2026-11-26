@@ -1060,10 +1060,19 @@ FVClickStayedPut (NSEvent *down)
 {
   NSString *text = [event charactersIgnoringModifiers];
   [NSObject cancelPreviousPerformRequestsWithTarget:self];
-  if ([text isEqual:@"\r"] || [text isEqual:@"\003"])
+  unichar key = [text length] ? [text characterAtIndex:0] : 0;
+  /* Return opens, as a double click does, and so does Command-Down, as
+     on a Mac; F2 renames, as on Windows. */
+  if (key == '\r' || key == NSEnterCharacter
+      || (key == NSDownArrowFunctionKey && ([event modifierFlags] & NSCommandKeyMask)))
     {
-      /* Return opens, as a double click does. */
       [NSApp sendAction:[self doubleAction] to:[self target] from:self];
+      return;
+    }
+  if (key == NSF2FunctionKey)
+    {
+      if ([self numberOfSelectedRows] == 1)
+        [NSApp sendAction:@selector (rename:) to:[self target] from:self];
       return;
     }
   if ([text length] && [text characterAtIndex:0] >= 32 && [text characterAtIndex:0] < 0xf700
@@ -1142,11 +1151,21 @@ FVClickStayedPut (NSEvent *down)
 - (void)keyDown:(NSEvent *)event
 {
   [NSObject cancelPreviousPerformRequestsWithTarget:self];
-  NSString *key = [event charactersIgnoringModifiers];
-  if (([key isEqual:@"\r"] || [key isEqual:@"\003"]) && [[self selectedCells] count] > 0)
+  NSString *text = [event charactersIgnoringModifiers];
+  unichar key = [text length] ? [text characterAtIndex:0] : 0;
+  /* Return opens, as a double click does, and so does Command-Down, as
+     on a Mac; F2 renames, as on Windows. */
+  if ((key == '\r' || key == NSEnterCharacter
+       || (key == NSDownArrowFunctionKey && ([event modifierFlags] & NSCommandKeyMask)))
+      && [[self selectedCells] count] > 0)
     {
-      /* Return opens, as a double click does. */
       [NSApp sendAction:@selector (open:) to:nil from:self];
+      return;
+    }
+  if (key == NSF2FunctionKey)
+    {
+      if ([[self selectedCells] count] == 1)
+        [NSApp sendAction:@selector (rename:) to:nil from:self];
       return;
     }
   [super keyDown:event];
