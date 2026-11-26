@@ -71,6 +71,8 @@ extern NSString *const FVDesktopSettingsChangedNotification;
    changed, or the defaults were written elsewhere). */
 + (void)syncWindowServer;
 + (void)syncScrollerStyle;
+/* Tiling's focus follows the pointer except with the Mac menu bar. */
++ (void)syncFocusFollowsMouse;
 
 - (id)initWithFrame:(NSRect)frame;
 - (NSView *)view;

@@ -56,6 +56,7 @@ static NSString *const FVWSLayoutKey = @"TilingLayout";
 static NSString *const FVWSInnerGapKey = @"TilingGapsInner";
 static NSString *const FVWSOuterGapKey = @"TilingGapsOuter";
 static NSString *const FVWSBorderKey = @"TilingBorder";
+static NSString *const FVWSFocusFollowsMouseKey = @"TilingFocusFollowsMouse";
 
 /* The Dock keeps its own placement, DockPlacement in its defaults domain,
    as its DockPlacement enumeration: left top, left centre, right top,
@@ -365,6 +366,20 @@ FVGapValues (void)
   if (![[self windowServerValueForKey:FVWSWindowModeKey] isEqual:mode])
     [self setWindowServerSettings:[NSDictionary dictionaryWithObject:mode
                                                               forKey:FVWSWindowModeKey]];
+  [self syncFocusFollowsMouse];
+}
+
+/* With the Mac menu bar, the focus (and with it the menu bar) moves only
+   on a click or when an app opens, as on a Mac: tiling's focus follows
+   the pointer otherwise (the Windows style's tiles). */
++ (void)syncFocusFollowsMouse
+{
+  NSString *follows = [[self effectiveValueForKey:FVMenuStyleKey] isEqual:@"macmenubar"]
+                        ? @"false" : @"true";
+  if (![[[self windowServerDefaults] objectForKey:FVWSFocusFollowsMouseKey]
+          isEqual:follows])
+    [self setWindowServerSettings:[NSDictionary dictionaryWithObject:follows
+                                                              forKey:FVWSFocusFollowsMouseKey]];
 }
 
 /* ---- the tab ---- */
@@ -983,6 +998,7 @@ FVLabel (NSRect frame, NSString *text)
     }
   if (modeChanged && ![mode isEqual:@"tiling"])
     [self performSelector:@selector (sendWindowMode:) withObject:mode afterDelay:0.75];
+  [[self class] syncFocusFollowsMouse];
   /* The menu style decides whether the Dock can be at the top. */
   if ([values objectForKey:FVWindowModeKey] || [values objectForKey:FVMenuStyleKey])
     [self refresh];
