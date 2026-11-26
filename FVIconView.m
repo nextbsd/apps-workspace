@@ -309,8 +309,25 @@
   if (![text length])
     return;
   unichar c = [text characterAtIndex:0];
+  /* F2 renames, as on Windows; Command-Down opens, as on a Mac. */
+  if (c == NSF2FunctionKey)
+    {
+      if ([selection count] == 1)
+        [owner rename:self];
+      return;
+    }
+  if (c == NSDownArrowFunctionKey && ([event modifierFlags] & NSCommandKeyMask))
+    {
+      [owner open:self];
+      return;
+    }
   NSInteger next = [selection count] ? focusedIndex : 0;
-  if (c == NSRightArrowFunctionKey)
+  BOOL arrow = c == NSRightArrowFunctionKey || c == NSLeftArrowFunctionKey
+            || c == NSDownArrowFunctionKey || c == NSUpArrowFunctionKey;
+  /* Nothing chosen yet: any arrow chooses the first item. */
+  if (arrow && ![selection count])
+    ;
+  else if (c == NSRightArrowFunctionKey)
     next++;
   else if (c == NSLeftArrowFunctionKey)
     next--;
@@ -318,12 +335,11 @@
     next += [self columns];
   else if (c == NSUpArrowFunctionKey)
     next -= [self columns];
-  else if (c == '\r')
+  else if (c == '\r' || c == NSEnterCharacter)
     {
-      if ([selection count] == 1)
-        [owner rename:self];
-      else
-        [owner open:self];
+      /* Return opens, as a double click does; Rename is in the File
+         menu, or a slow second click on the name. */
+      [owner open:self];
       return;
     }
   else

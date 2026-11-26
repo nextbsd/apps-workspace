@@ -1060,12 +1060,19 @@ FVClickStayedPut (NSEvent *down)
 {
   NSString *text = [event charactersIgnoringModifiers];
   [NSObject cancelPreviousPerformRequestsWithTarget:self];
-  if ([text isEqual:@"\r"])
+  unichar key = [text length] ? [text characterAtIndex:0] : 0;
+  /* Return opens, as a double click does, and so does Command-Down, as
+     on a Mac; F2 renames, as on Windows. */
+  if (key == '\r' || key == NSEnterCharacter
+      || (key == NSDownArrowFunctionKey && ([event modifierFlags] & NSCommandKeyMask)))
     {
-      [NSApp sendAction:[self numberOfSelectedRows] == 1 ? @selector (rename:)
-                                                         : [self doubleAction]
-                     to:[self target]
-                   from:self];
+      [NSApp sendAction:[self doubleAction] to:[self target] from:self];
+      return;
+    }
+  if (key == NSF2FunctionKey)
+    {
+      if ([self numberOfSelectedRows] == 1)
+        [NSApp sendAction:@selector (rename:) to:[self target] from:self];
       return;
     }
   if ([text length] && [text characterAtIndex:0] >= 32 && [text characterAtIndex:0] < 0xf700
@@ -1144,9 +1151,21 @@ FVClickStayedPut (NSEvent *down)
 - (void)keyDown:(NSEvent *)event
 {
   [NSObject cancelPreviousPerformRequestsWithTarget:self];
-  if ([[event charactersIgnoringModifiers] isEqual:@"\r"] && [[self selectedCells] count] == 1)
+  NSString *text = [event charactersIgnoringModifiers];
+  unichar key = [text length] ? [text characterAtIndex:0] : 0;
+  /* Return opens, as a double click does, and so does Command-Down, as
+     on a Mac; F2 renames, as on Windows. */
+  if ((key == '\r' || key == NSEnterCharacter
+       || (key == NSDownArrowFunctionKey && ([event modifierFlags] & NSCommandKeyMask)))
+      && [[self selectedCells] count] > 0)
     {
-      [NSApp sendAction:@selector (rename:) to:nil from:self];
+      [NSApp sendAction:@selector (open:) to:nil from:self];
+      return;
+    }
+  if (key == NSF2FunctionKey)
+    {
+      if ([[self selectedCells] count] == 1)
+        [NSApp sendAction:@selector (rename:) to:nil from:self];
       return;
     }
   [super keyDown:event];
@@ -1554,6 +1573,14 @@ FVClickStayedPut (NSEvent *down)
         [self columnMode:nil];
       else if (savedMode == 2)
         [self iconMode:nil];
+      /* A new viewer takes the keys in its files, not the search field:
+         the arrows choose and Return opens straight away. */
+      {
+        NSView *files = mode == 1 ? (NSView *)browser
+                      : mode == 2 ? (NSView *)icons : (NSView *)table;
+        [[self window] setInitialFirstResponder:files];
+        [[self window] makeFirstResponder:files];
+      }
       monitor = RETAIN ([NSTimer scheduledTimerWithTimeInterval:1
                                                   target:self
                                                 selector:@selector (checkDirectory:)
