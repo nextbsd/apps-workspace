@@ -912,7 +912,13 @@ FVLabel (NSRect frame, NSString *text)
     [self postChangeOfKey:FVDockStyleKey
                     value:[[self class] effectiveValueForKey:FVDockStyleKey]];
   if ([values objectForKey:FVScrollerStyleKey])
-    [[self class] syncScrollerStyle];
+    {
+      /* Running apps re-read GNUstep's keys and lay out their scrollers
+         again on this notice (the NextBSD theme does it in every app). */
+      [[self class] syncScrollerStyle];
+      [self postChangeOfKey:FVScrollerStyleKey
+                      value:[[self class] effectiveValueForKey:FVScrollerStyleKey]];
+    }
   if (modeChanged && ![mode isEqual:@"tiling"])
     [self performSelector:@selector (sendWindowMode:) withObject:mode afterDelay:0.75];
   /* The menu style decides whether the Dock can be at the top. */
