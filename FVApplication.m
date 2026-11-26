@@ -54,6 +54,28 @@ FVCreateStandardUserFolders (void)
         withIntermediateDirectories:YES attributes:nil error:NULL];
 }
 
+/* At login, links in ~/Applications to Software and Terminal (in
+   /System/Applications, by absolute path, so they hold whether the home is
+   under /Network or /Local), wherever one is missing. */
+static void
+FVPlaceApplicationLinks (void)
+{
+  NSArray *apps = [NSArray arrayWithObjects:@"Software.app", @"Terminal.app", nil];
+  NSFileManager *fm = [NSFileManager defaultManager];
+  NSString *folder = [NSHomeDirectory () stringByAppendingPathComponent:@"Applications"];
+  NSUInteger i;
+
+  for (i = 0; i < [apps count]; i++)
+    {
+      NSString *name = [apps objectAtIndex:i];
+      NSString *link = [folder stringByAppendingPathComponent:name];
+
+      if ([fm fileAttributesAtPath:link traverseLink:NO] == nil)
+        [fm createSymbolicLinkAtPath:link
+                         pathContent:[@"/System/Applications" stringByAppendingPathComponent:name]];
+    }
+}
+
 /* Workspace was FileViewer. The first time it starts, bring FileViewer's
    settings over, except the saved main menu position: one saved under an X11
    window manager is offset by its frame. */
@@ -87,6 +109,7 @@ FVMigrateFileViewerDefaults (void)
 {
   FVMigrateFileViewerDefaults ();
   FVCreateStandardUserFolders ();
+  FVPlaceApplicationLinks ();
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
   [defaults synchronize];
   NSMutableDictionary *domain = [NSMutableDictionary dictionaryWithDictionary:
