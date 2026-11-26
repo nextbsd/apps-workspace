@@ -40,6 +40,7 @@
   NSButton *bounceLaunchCheckbox;
   NSButton *bounceAttentionCheckbox;
   NSButton *singleClickCheckbox;
+  NSButton *resetButton;
   NSMutableArray *extraCheckboxes;
 }
 

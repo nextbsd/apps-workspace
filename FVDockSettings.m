@@ -167,6 +167,14 @@ FVDockLabel (NSRect frame, NSString *text)
                                      action:@selector (choose:)];
   magnifySlider = [self sliderWithFrame:NSMakeRect (x, y, width, 22) min:1.0 max:1.5];
 
+  /* The two sizes back to the Dock's own; magnification stays on or off. */
+  y -= 34;
+  resetButton = [[NSButton alloc] initWithFrame:NSMakeRect (x, y, 160, 26)];
+  [resetButton setTitle:@"Restore Defaults"];
+  [resetButton setTarget:self];
+  [resetButton setAction:@selector (restoreSizes:)];
+  [view addSubview:resetButton];
+
   y -= 40;
   label = FVDockLabel (NSMakeRect (20, y - 1, 148, 22), @"Dots:");
   [label setAlignment:NSRightTextAlignment];
@@ -260,6 +268,17 @@ FVDockLabel (NSRect frame, NSString *text)
   [self showHiddenExtras:[c dockValueForKey:FVExtrasHiddenKey]];
 }
 
+- (void)restoreSizes:(id)sender
+{
+  NSDictionary *defaults = FVDockDefaults ();
+  NSDictionary *values = [NSDictionary dictionaryWithObjectsAndKeys:
+      [defaults objectForKey:FVDockScaleKey], FVDockScaleKey,
+      [defaults objectForKey:FVHoverScaleKey], FVHoverScaleKey, nil];
+  [sizeSlider setDoubleValue:[[values objectForKey:FVDockScaleKey] doubleValue]];
+  [magnifySlider setDoubleValue:[[values objectForKey:FVHoverScaleKey] doubleValue]];
+  [[self class] setDockValues:values];
+}
+
 - (void)choose:(id)sender
 {
   NSString *key = nil;
@@ -323,6 +342,7 @@ FVDockLabel (NSRect frame, NSString *text)
   RELEASE (bounceLaunchCheckbox);
   RELEASE (bounceAttentionCheckbox);
   RELEASE (singleClickCheckbox);
+  RELEASE (resetButton);
   RELEASE (extraCheckboxes);
   RELEASE (view);
   DEALLOC;
