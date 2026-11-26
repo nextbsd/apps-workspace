@@ -38,8 +38,8 @@ static NSString *const FVDockStyleKey = @"NBDockStyle";
    in NSGlobalDomain from this one. */
 static NSString *const FVScrollerStyleKey = @"NBScrollerStyle";
 /* NBAppearance (dark or light) and NBWindowStyle (the title bar buttons:
-   NeXT, Mac traffic lights, or Tiling's minimize, maximize and close at
-   the right) are the theme's to draw; it redraws every app at once when
+   NeXT, Mac traffic lights, or Windows' minimize, maximize and close at
+   the right, saved as "tiling") are the theme's to draw; it redraws every app at once when
    told of a change. */
 static NSString *const FVAppearanceKey = @"NBAppearance";
 static NSString *const FVWindowStyleKey = @"NBWindowStyle";
@@ -100,7 +100,7 @@ FVAllowedValues (NSString *key)
   if ([key isEqual:FVDockPositionKey])
     return [NSArray arrayWithObjects:@"right", @"left", @"top", @"bottom", nil];
   if ([key isEqual:FVMenuStyleKey])
-    return [NSArray arrayWithObjects:@"nextstep", @"inwindow", @"macmenubar", nil];
+    return [NSArray arrayWithObjects:@"nextstep", @"macmenubar", @"inwindow", nil];
   if ([key isEqual:FVWindowModeKey])
     return [NSArray arrayWithObjects:@"stacking", @"tiling", nil];
   if ([key isEqual:FVDockStyleKey])
@@ -123,19 +123,18 @@ FVValueTitles (NSString *key)
   if ([key isEqual:FVDockPositionKey])
     return [NSArray arrayWithObjects:@"Right", @"Left", @"Top", @"Bottom", nil];
   if ([key isEqual:FVMenuStyleKey])
-    return [NSArray arrayWithObjects:@"NeXT", @"In-window", @"Mac menu bar", nil];
+    return [NSArray arrayWithObjects:@"NeXT", @"Mac (menu bar)",
+                                     @"Windows (in each window)", nil];
   if ([key isEqual:FVWindowModeKey])
     return [NSArray arrayWithObjects:@"Stacking", @"Tiling", nil];
   if ([key isEqual:FVDockStyleKey])
-    return [NSArray arrayWithObjects:@"Optimized for NeXT", @"Optimized for Mac",
-                                     @"Optimized for Tiling", nil];
+    return [NSArray arrayWithObjects:@"NeXT", @"Mac", @"Windows", nil];
   if ([key isEqual:FVScrollerStyleKey])
-    return [NSArray arrayWithObjects:@"NeXT (left)", @"Mac (right)",
-                                     @"Right, arrows apart", nil];
+    return [NSArray arrayWithObjects:@"NeXT", @"Mac", @"Windows", nil];
   if ([key isEqual:FVAppearanceKey])
     return [NSArray arrayWithObjects:@"Dark", @"Light", nil];
   if ([key isEqual:FVWindowStyleKey])
-    return [NSArray arrayWithObjects:@"NeXT", @"Mac", @"Optimized for Tiling", nil];
+    return [NSArray arrayWithObjects:@"NeXT", @"Mac", @"Windows", nil];
   return nil;
 }
 
@@ -372,8 +371,8 @@ FVGapValues (void)
 
 /* A small picture of a style's desktop, 120x72: NeXT (a floating menu at
    the top left, the Dock down the right as tiles), Mac (a menu bar, a
-   see-through Dock along the bottom) or Tiling (windows side by side,
-   menus inside them). */
+   see-through Dock along the bottom) or Windows (menus inside the
+   windows, the taskbar along the bottom). */
 static NSImage *
 FVPresetImage (NSUInteger preset)
 {
@@ -422,17 +421,23 @@ FVPresetImage (NSUInteger preset)
     }
   else
     {
+      /* Windows: windows with their menus inside, buttons at the right,
+         and the taskbar across the bottom, its icons in the middle. */
       [window set];
-      NSRectFill (NSMakeRect (4, 18, 54, 50));
-      NSRectFill (NSMakeRect (62, 44, 54, 24));
-      NSRectFill (NSMakeRect (62, 18, 54, 22));
+      NSRectFill (NSMakeRect (14, 26, 60, 40));
+      NSRectFill (NSMakeRect (46, 20, 62, 36));
       [title set];
-      NSRectFill (NSMakeRect (4, 64, 54, 4));
-      NSRectFill (NSMakeRect (62, 64, 54, 4));
-      NSRectFill (NSMakeRect (62, 36, 54, 4));
+      NSRectFill (NSMakeRect (14, 62, 60, 4));
+      NSRectFill (NSMakeRect (46, 52, 62, 4));
+      [[NSColor colorWithCalibratedWhite:0.62 alpha:1] set];
+      NSRectFill (NSMakeRect (46, 48, 62, 3));
+      [bar set];
+      NSRectFill (NSMakeRect (0, 0, size.width, 13));
       [icon set];
       for (i = 0; i < 4; i++)
-        NSRectFill (NSMakeRect (38 + i * 12, 4, 8, 8));
+        NSRectFill (NSMakeRect (38 + i * 12, 3, 8, 8));
+      [[NSColor colorWithCalibratedWhite:0.75 alpha:1] set];
+      NSRectFill (NSMakeRect (104, 5, 12, 3));
     }
   [image unlockFocus];
   return image;
@@ -498,7 +503,7 @@ FVLabel (NSRect frame, NSString *text)
      the settings below can change. */
   [view addSubview:FVLabel (NSMakeRect (20, y, 300, 22), @"Choose your style:")];
   presetButtons = [[NSMutableArray alloc] init];
-  NSArray *presetNames = [NSArray arrayWithObjects:@"NeXT", @"Mac", @"Tiling", nil];
+  NSArray *presetNames = [NSArray arrayWithObjects:@"NeXT", @"Mac", @"Windows", nil];
   CGFloat column = (NSWidth (frame) - 40) / 3;
   NSUInteger i;
   for (i = 0; i < 3; i++)
@@ -536,7 +541,7 @@ FVLabel (NSRect frame, NSString *text)
   /* NBDockStyle, named for the presets: NeXT, a tile behind each icon
      (common_Tile) and no lines between the Dock's sections (the NextBSD
      theme's default); Mac, the lines on a see-through panel, as macOS's
-     Dock has; Tiling, clear, with the lines. */
+     Dock has; Windows, a taskbar across the bottom as Windows 11's. */
   dockStylePopUp = [self popUpForKey:FVDockStyleKey label:@"Dock style:" row:y];
   y -= step;
   /* NBScrollerStyle: NeXTSTEP's scrollers on the left with both arrows
@@ -673,6 +678,17 @@ FVLabel (NSRect frame, NSString *text)
       [popUp addItemWithTitle:[titles objectAtIndex:i]];
       [[popUp lastItem] setRepresentedObject:[values objectAtIndex:i]];
     }
+  /* Tiling is the Windows style's, for now. */
+  if ([key isEqual:FVWindowModeKey])
+    {
+      BOOL windows = [[[self class] effectiveValueForKey:FVWindowStyleKey]
+                       isEqual:@"tiling"];
+      NSInteger t = [popUp indexOfItemWithRepresentedObject:@"tiling"];
+      [popUp setAutoenablesItems:NO];
+      if (t >= 0)
+        [[popUp itemAtIndex:t] setEnabled:windows];
+      [popUp setToolTip:windows ? nil : @"Tiling works in the Windows style."];
+    }
   index = user ? [popUp indexOfItemWithRepresentedObject:user] : -1;
   [popUp selectItemAtIndex:index < 0 ? 0 : index];
   if (dock)
@@ -709,7 +725,9 @@ FVLabel (NSRect frame, NSString *text)
   NSString *menu = [[self class] effectiveValueForKey:FVMenuStyleKey];
   NSString *dockStyle = [[self class] effectiveValueForKey:FVDockStyleKey];
   NSInteger preset = -1;
-  if ([mode isEqual:@"tiling"] && [dockStyle isEqual:@"tiling"])
+  if ([[[self class] effectiveValueForKey:FVWindowStyleKey] isEqual:@"tiling"]
+      && [dockStyle isEqual:@"tiling"]
+      && ([mode isEqual:@"tiling"] || [menu isEqual:@"inwindow"]))
     preset = 2;
   else if ([mode isEqual:@"stacking"] && [menu isEqual:@"macmenubar"]
            && [dockStyle isEqual:@"mac"])
@@ -856,6 +874,7 @@ FVLabel (NSRect frame, NSString *text)
   id value = [[sender selectedItem] representedObject];
   [self applyValues:[NSDictionary dictionaryWithObject:value ? value : (id)[NSNull null]
                                                 forKey:[self keyForPopUp:sender]]];
+  [self stackUnlessWindows];
 }
 
 /*
@@ -966,8 +985,11 @@ FVLabel (NSRect frame, NSString *text)
 
 /* The style presets: what each sets (NSNull: the theme's default). NeXT:
    floating menus, the theme's Dock (NeXTSTEP's tiles). Mac: the menu
-   bar, a see-through Dock along the bottom. Tiling: windows side by
-   side, in-window menus (tiling's), a clear Dock. */
+   bar, a see-through Dock along the bottom. Windows: menus in each
+   window, the taskbar along the bottom, its title bar buttons and
+   scrollers. Stacking or tiling is a setting of its own; tiling is the
+   Windows style's, for now, so NeXT and Mac stack. ("tiling" is the
+   Windows style's saved value, from when it was named for tiling.) */
 - (void)choosePreset:(id)sender
 {
   NSInteger preset = [sender tag];
@@ -987,11 +1009,21 @@ FVLabel (NSRect frame, NSString *text)
         @"mac", FVWindowStyleKey, nil];
   else
     values = [NSDictionary dictionaryWithObjectsAndKeys:
-        @"tiling", FVWindowModeKey, theme, FVDockPositionKey,
-        theme, FVMinimizeStyleKey, @"tiling", FVDockStyleKey,
-        theme, FVScrollerStyleKey, @"tiling", FVWindowStyleKey, nil];
+        @"inwindow", FVMenuStyleKey, @"bottom", FVDockPositionKey,
+        @"dock", FVMinimizeStyleKey, @"tiling", FVDockStyleKey,
+        @"split", FVScrollerStyleKey, @"tiling", FVWindowStyleKey, nil];
   [self applyValues:values];
+  [self stackUnlessWindows];
   [self refresh];
+}
+
+/* Tiling is the Windows style's, for now: any other style stacks. */
+- (void)stackUnlessWindows
+{
+  if ([[[self class] windowMode] isEqual:@"tiling"]
+      && ![[[self class] effectiveValueForKey:FVWindowStyleKey] isEqual:@"tiling"])
+    [self applyValues:[NSDictionary dictionaryWithObject:@"stacking"
+                                                   forKey:FVWindowModeKey]];
 }
 
 /* Switch WindowServer's tiling, and tell the Dock and apps the mode. */
