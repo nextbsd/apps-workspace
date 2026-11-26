@@ -176,6 +176,9 @@ FVMigrateFileViewerDefaults (void)
   launched = YES;
   /* WindowServer tiles or stacks as the window mode in effect says. */
   [FVDesktopSettings syncWindowServer];
+  /* GNUstep's scroller keys follow the scroller style, the theme's
+     default included. */
+  [FVDesktopSettings syncScrollerStyle];
   /* The desktop is Workspace's; its background is drawn by a process of
      its own, under the desktop's clear windows. */
   [[FVDesktop sharedDesktop] show];
