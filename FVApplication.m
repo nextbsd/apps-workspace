@@ -54,6 +54,44 @@ FVCreateStandardUserFolders (void)
         withIntermediateDirectories:YES attributes:nil error:NULL];
 }
 
+/* So ~/Applications isn't bare before anything is installed: links to
+   Software (to get apps) and Terminal, which live in /System/Applications.
+   Each is placed once (NBPlacedAppLinks remembers it), so one the person
+   removes stays removed; a file already there by that name is left. */
+static void
+FVPlaceApplicationLinks (void)
+{
+  NSArray *apps = [NSArray arrayWithObjects:@"Software.app", @"Terminal.app", nil];
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  NSMutableArray *placed = [NSMutableArray arrayWithArray:
+      [defaults arrayForKey:@"NBPlacedAppLinks"] ? [defaults arrayForKey:@"NBPlacedAppLinks"]
+                                                  : [NSArray array]];
+  NSFileManager *fm = [NSFileManager defaultManager];
+  NSString *folder = [NSHomeDirectory () stringByAppendingPathComponent:@"Applications"];
+  NSUInteger i;
+  BOOL changed = NO;
+
+  for (i = 0; i < [apps count]; i++)
+    {
+      NSString *name = [apps objectAtIndex:i];
+      NSString *target = [@"/System/Applications" stringByAppendingPathComponent:name];
+      NSString *link = [folder stringByAppendingPathComponent:name];
+
+      if ([placed containsObject:name] || ![fm fileExistsAtPath:target])
+        continue;
+      if ([fm fileAttributesAtPath:link traverseLink:NO] == nil
+          && ![fm createSymbolicLinkAtPath:link pathContent:target])
+        continue;
+      [placed addObject:name];
+      changed = YES;
+    }
+  if (changed)
+    {
+      [defaults setObject:placed forKey:@"NBPlacedAppLinks"];
+      [defaults synchronize];
+    }
+}
+
 /* Workspace was FileViewer. The first time it starts, bring FileViewer's
    settings over, except the saved main menu position: one saved under an X11
    window manager is offset by its frame. */
@@ -87,6 +125,7 @@ FVMigrateFileViewerDefaults (void)
 {
   FVMigrateFileViewerDefaults ();
   FVCreateStandardUserFolders ();
+  FVPlaceApplicationLinks ();
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
   [defaults synchronize];
   NSMutableDictionary *domain = [NSMutableDictionary dictionaryWithDictionary:
