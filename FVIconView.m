@@ -285,12 +285,17 @@
 }
 
 /* Right-clicking an icon selects it, unless it's already selected, and
-   shows the item menu. */
+   shows the item menu; right-clicking between icons shows the folder's. */
 - (NSMenu *)menuForEvent:(NSEvent *)event
 {
   NSInteger i = [self indexAtPoint:[self convertPoint:[event locationInWindow] fromView:nil]];
   if (i < 0)
-    return nil;
+    {
+      [selection removeAllIndexes];
+      [self reload];
+      [owner selectionChanged];
+      return [owner backgroundMenu];
+    }
   if (![selection containsIndex:i])
     {
       [selection removeAllIndexes];

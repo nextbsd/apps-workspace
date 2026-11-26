@@ -465,7 +465,7 @@ FVMigrateFileViewerDefaults (void)
   if (!preferencesPanel)
     {
       preferencesPanel = [[NSPanel alloc]
-          initWithContentRect:NSMakeRect (0, 0, 540, 690)
+          initWithContentRect:NSMakeRect (0, 0, 540, 724)
                     styleMask:NSTitledWindowMask | NSClosableWindowMask
                       backing:NSBackingStoreBuffered defer:NO];
       [preferencesPanel setTitle:@"Preferences"];
@@ -475,7 +475,7 @@ FVMigrateFileViewerDefaults (void)
          size, behavior and status extras. Background: the desktop
          background's module. */
       NSTabView *tabs = AUTORELEASE ([[NSTabView alloc]
-          initWithFrame:NSMakeRect (10, 10, 520, 670)]);
+          initWithFrame:NSMakeRect (10, 10, 520, 704)]);
       [[preferencesPanel contentView] addSubview:tabs];
       NSRect page = [tabs contentRect];
       page.origin = NSZeroPoint;
@@ -530,6 +530,17 @@ FVMigrateFileViewerDefaults (void)
   [dockSettings refresh];
   [backgroundSettings refresh];
   [preferencesPanel makeKeyAndOrderFront:self];
+}
+
+/* The desktop's Change Background…: Preferences, at its Background tab. */
+- (void)showBackgroundPreferences:(id)sender
+{
+  [self preferences:sender];
+  NSEnumerator *e = [[[preferencesPanel contentView] subviews] objectEnumerator];
+  id view;
+  while ((view = [e nextObject]) != nil)
+    if ([view isKindOfClass:[NSTabView class]])
+      [view selectTabViewItemWithIdentifier:@"Background"];
 }
 
 - (void)toggleThumbnails:(id)sender
