@@ -1456,7 +1456,17 @@ FVClickStayedPut (NSEvent *down)
   NSArray *rootVolumes = FVVolumesInMountRoots ();
   [allMounts addObjectsFromArray:rootVolumes];
   ASSIGNCOPY (mountedVolumePaths, allMounts);
-  NSArray *networkPaths = FVVisibleLocationPaths (allNetworkPaths);
+  /* /Network is the network domain, listed under Domains, not a volume:
+     the server's share mounted there (and the homes under it) stay out
+     of Volumes. */
+  NSMutableArray *shares = [NSMutableArray array];
+  for (i = 0; i < [allNetworkPaths count]; i++)
+    {
+      NSString *share = [allNetworkPaths objectAtIndex:i];
+      if (![share isEqual:@"/Network"] && ![share hasPrefix:@"/Network/"])
+        [shares addObject:share];
+    }
+  NSArray *networkPaths = FVVisibleLocationPaths (shares);
   NSMutableArray *mounted = [NSMutableArray array];
   NSMutableSet *mountedPaths = [NSMutableSet set];
   NSMutableArray *volumeCandidates = [NSMutableArray arrayWithArray:rootVolumes];
@@ -1796,8 +1806,11 @@ FVClickStayedPut (NSEvent *down)
       [cell setImage:nil];
       return;
     }
+  /* The domains keep their folder icons even when something is mounted
+     on them (/Network is an NFS mount on a joined machine). */
   if ([[item objectForKey:@"group"] isEqual:@"mounted"]
-      || [mountedVolumePaths containsObject:p])
+      || ([mountedVolumePaths containsObject:p]
+          && ![[item objectForKey:@"group"] isEqual:@"domain"]))
     {
       /* Do not contact a possibly disconnected server just to draw its icon. */
       [cell setImage:[NSImage imageNamed:@"HardDisk"]];
