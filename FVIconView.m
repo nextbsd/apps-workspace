@@ -318,12 +318,11 @@
     next += [self columns];
   else if (c == NSUpArrowFunctionKey)
     next -= [self columns];
-  else if (c == '\r')
+  else if (c == '\r' || c == NSEnterCharacter)
     {
-      if ([selection count] == 1)
-        [owner rename:self];
-      else
-        [owner open:self];
+      /* Return opens, as a double click does; Rename is in the File
+         menu, or a slow second click on the name. */
+      [owner open:self];
       return;
     }
   else

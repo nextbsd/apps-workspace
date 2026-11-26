@@ -1060,12 +1060,10 @@ FVClickStayedPut (NSEvent *down)
 {
   NSString *text = [event charactersIgnoringModifiers];
   [NSObject cancelPreviousPerformRequestsWithTarget:self];
-  if ([text isEqual:@"\r"])
+  if ([text isEqual:@"\r"] || [text isEqual:@"\003"])
     {
-      [NSApp sendAction:[self numberOfSelectedRows] == 1 ? @selector (rename:)
-                                                         : [self doubleAction]
-                     to:[self target]
-                   from:self];
+      /* Return opens, as a double click does. */
+      [NSApp sendAction:[self doubleAction] to:[self target] from:self];
       return;
     }
   if ([text length] && [text characterAtIndex:0] >= 32 && [text characterAtIndex:0] < 0xf700
@@ -1144,9 +1142,11 @@ FVClickStayedPut (NSEvent *down)
 - (void)keyDown:(NSEvent *)event
 {
   [NSObject cancelPreviousPerformRequestsWithTarget:self];
-  if ([[event charactersIgnoringModifiers] isEqual:@"\r"] && [[self selectedCells] count] == 1)
+  NSString *key = [event charactersIgnoringModifiers];
+  if (([key isEqual:@"\r"] || [key isEqual:@"\003"]) && [[self selectedCells] count] > 0)
     {
-      [NSApp sendAction:@selector (rename:) to:nil from:self];
+      /* Return opens, as a double click does. */
+      [NSApp sendAction:@selector (open:) to:nil from:self];
       return;
     }
   [super keyDown:event];
