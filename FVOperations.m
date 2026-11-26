@@ -89,7 +89,34 @@ FVExists (NSString *p)
 static int
 FVRename (NSString *a, NSString *b)
 {
-#ifdef SYS_renameat2
+#if defined(__FreeBSD__) && defined(RENAME_NOREPLACE)
+  const char *from = [a fileSystemRepresentation], *to = [b fileSystemRepresentation];
+  struct stat st;
+  /* FreeBSD 15's renameat2 (NextBSD). */
+  if (renameat2 (AT_FDCWD, from, AT_FDCWD, to, RENAME_NOREPLACE) == 0)
+    return 0;
+  if (errno != EOPNOTSUPP && errno != ENOTSUP)
+    return -1;
+  /* A filesystem without it (NFS, so every network home): a file or link
+     by linkat and unlink, which never replaces; a folder by rename after
+     checking the name is free (rename never replaces a folder that has
+     anything in it). */
+  if (lstat (from, &st))
+    return -1;
+  if (!S_ISDIR (st.st_mode))
+    {
+      if (linkat (AT_FDCWD, from, AT_FDCWD, to, 0))
+        return -1;
+      unlink (from);
+      return 0;
+    }
+  if (lstat (to, &st) == 0)
+    {
+      errno = EEXIST;
+      return -1;
+    }
+  return rename (from, to);
+#elif defined(SYS_renameat2)
   return syscall (SYS_renameat2, AT_FDCWD, [a fileSystemRepresentation], AT_FDCWD,
                   [b fileSystemRepresentation], 1 /* RENAME_NOREPLACE */);
 #else
