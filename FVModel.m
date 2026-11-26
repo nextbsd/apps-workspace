@@ -117,6 +117,43 @@ FVExcludeRunFilesystems (void)
 
 @end
 
+/* A date as people read it in a list, in local time: "Today at 7:12",
+   "Yesterday at 16:05", else the locale's medium date and short time
+   ("26 Nov 2026 at 7:12"). The day is the calendar day here, not 24
+   hours back. */
+static NSString *
+FVListDate (NSDate *date)
+{
+  static NSDateFormatter *day = nil, *time = nil, *full = nil;
+  NSString *when, *today, *yesterday;
+
+  if (date == nil)
+    return @"";
+  if (day == nil)
+    {
+      day = [[NSDateFormatter alloc] init];
+      [day setFormatterBehavior:NSDateFormatterBehavior10_4];
+      [day setDateFormat:@"yyyyMMdd"];
+      time = [[NSDateFormatter alloc] init];
+      [time setFormatterBehavior:NSDateFormatterBehavior10_4];
+      [time setDateStyle:NSDateFormatterNoStyle];
+      [time setTimeStyle:NSDateFormatterShortStyle];
+      full = [[NSDateFormatter alloc] init];
+      [full setFormatterBehavior:NSDateFormatterBehavior10_4];
+      [full setDateStyle:NSDateFormatterMediumStyle];
+      [full setTimeStyle:NSDateFormatterNoStyle];
+    }
+  when = [day stringFromDate:date];
+  today = [day stringFromDate:[NSDate date]];
+  yesterday = [day stringFromDate:[NSDate dateWithTimeIntervalSinceNow:-86400]];
+  if ([when isEqual:today])
+    return [NSString stringWithFormat:@"Today at %@", [time stringFromDate:date]];
+  if ([when isEqual:yesterday])
+    return [NSString stringWithFormat:@"Yesterday at %@", [time stringFromDate:date]];
+  return [NSString stringWithFormat:@"%@ at %@", [full stringFromDate:date],
+                                    [time stringFromDate:date]];
+}
+
 @implementation FVRecentParser
 
 - (id)init
@@ -272,7 +309,7 @@ FVExcludeRunFilesystems (void)
 
 - (id)valueForColumn:(NSString *)key
 {
-  return [key isEqual:@"date"] ? [accessed description] : [super valueForColumn:key];
+  return [key isEqual:@"date"] ? FVListDate (accessed) : [super valueForColumn:key];
 }
 
 - (void)dealloc
@@ -379,7 +416,7 @@ FVExcludeRunFilesystems (void)
   if ([key isEqual:@"size"])
     return directory ? @"—" : [[attributes objectForKey:NSFileSize] description];
   if ([key isEqual:@"date"])
-    return [[attributes objectForKey:NSFileModificationDate] description];
+    return FVListDate ([attributes objectForKey:NSFileModificationDate]);
   if (![attributes objectForKey:NSFilePosixPermissions])
     return @"Unavailable";
   return [NSString stringWithFormat:@"%04lo", [[attributes objectForKey:NSFilePosixPermissions]
