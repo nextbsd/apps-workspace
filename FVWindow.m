@@ -324,14 +324,12 @@ FVButton (NSView *view, NSString *title, SEL action, id target, CGFloat x, CGFlo
   return button;
 }
 
-/* Draw toolbar glyphs at their native size without depending on a theme's
-   optional image names. Coordinates use AppKit's bottom-left origin. */
-static NSImage *
-FVToolbarImage (NSUInteger kind)
+/* The toolbar's symbols, drawn here rather than taken from a theme's
+   optional image names: a path in a 20-point square, AppKit's bottom-left
+   origin, to stroke. */
+static NSBezierPath *
+FVToolbarGlyph (NSUInteger kind)
 {
-  NSImage *image = AUTORELEASE ([[NSImage alloc] initWithSize:NSMakeSize (20, 20)]);
-  [image lockFocus];
-  [[NSColor controlTextColor] set];
   NSBezierPath *glyph = [NSBezierPath bezierPath];
   [glyph setLineWidth:1.8];
   [glyph setLineCapStyle:NSRoundLineCapStyle];
@@ -434,17 +432,169 @@ FVToolbarImage (NSUInteger kind)
         for (column = 0; column < 2; column++)
           [glyph appendBezierPathWithRect:NSMakeRect (3 + column * 9, 3 + row * 9, 5, 5)];
     }
-  [glyph stroke];
+  return glyph;
+}
+
+/* A symbol as an image, in the text colour (the sidebar's Recents). */
+static NSImage *
+FVToolbarImage (NSUInteger kind)
+{
+  NSImage *image = AUTORELEASE ([[NSImage alloc] initWithSize:NSMakeSize (20, 20)]);
+  [image lockFocus];
+  [[NSColor controlTextColor] set];
+  [FVToolbarGlyph (kind) stroke];
   [image unlockFocus];
   return image;
 }
+
+/*
+ * A toolbar button as the design draws them (nextbsd/nextbsd-theme#14):
+ * the symbol faint until the pointer is over it, then bright on a soft
+ * background; the current view's button (List, Columns, Icons) in the
+ * accent; all of it dimmer while the window isn't key. System colours
+ * throughout, so Dark and Light both follow.
+ */
+@interface FVToolButton : NSButton
+{
+  NSUInteger kind;
+  BOOL hover, on;
+  NSTrackingRectTag trackTag;
+}
+- (void)setGlyphKind:(NSUInteger)aKind;
+- (void)setOn:(BOOL)flag;
+@end
+
+@implementation FVToolButton
+
+- (void)setGlyphKind:(NSUInteger)aKind
+{
+  kind = aKind;
+}
+
+- (void)setOn:(BOOL)flag
+{
+  if (on == flag)
+    return;
+  on = flag;
+  [self setNeedsDisplay:YES];
+}
+
+- (void)track
+{
+  if (trackTag)
+    [self removeTrackingRect:trackTag];
+  trackTag = [self window] ? [self addTrackingRect:[self bounds] owner:self userData:NULL
+                                       assumeInside:NO]
+                           : 0;
+}
+
+- (void)viewWillMoveToWindow:(NSWindow *)window
+{
+  NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+  if (trackTag)
+    [self removeTrackingRect:trackTag];
+  trackTag = 0;
+  hover = NO;
+  [nc removeObserver:self];
+  if (window)
+    {
+      [nc addObserver:self selector:@selector (keyChanged:)
+                 name:NSWindowDidBecomeKeyNotification object:window];
+      [nc addObserver:self selector:@selector (keyChanged:)
+                 name:NSWindowDidResignKeyNotification object:window];
+    }
+  [super viewWillMoveToWindow:window];
+}
+
+- (void)viewDidMoveToWindow
+{
+  [super viewDidMoveToWindow];
+  [self track];
+}
+
+- (void)setFrame:(NSRect)frame
+{
+  [super setFrame:frame];
+  [self track];
+}
+
+- (void)keyChanged:(NSNotification *)note
+{
+  [self setNeedsDisplay:YES];
+}
+
+- (void)mouseEntered:(NSEvent *)event
+{
+  hover = YES;
+  [self setNeedsDisplay:YES];
+}
+
+- (void)mouseExited:(NSEvent *)event
+{
+  hover = NO;
+  [self setNeedsDisplay:YES];
+}
+
+- (void)dealloc
+{
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
+  DEALLOC;
+}
+
+- (void)drawRect:(NSRect)rect
+{
+  NSWindow *w = [self window];
+  BOOL active = [w isKeyWindow] || [w isMainWindow];
+  BOOL enabled = [self isEnabled], pressed = [[self cell] isHighlighted];
+  NSColor *ink;
+
+  if (enabled && (pressed || (hover && active) || (on && active)))
+    {
+      NSColor *back = [NSColor secondarySelectedControlColor];
+      if (pressed)
+        back = [back shadowWithLevel:0.15];
+      [back set];
+      [[NSBezierPath bezierPathWithRoundedRect:NSInsetRect ([self bounds], 3, 2)
+                                       xRadius:5
+                                       yRadius:5] fill];
+    }
+  if (!enabled)
+    ink = [[NSColor tertiaryLabelColor] colorWithAlphaComponent:0.4];
+  else if (on)
+    ink = active ? [NSColor keyboardFocusIndicatorColor] : [NSColor secondaryLabelColor];
+  else if (hover || pressed)
+    ink = [NSColor labelColor];
+  else
+    ink = active ? [NSColor tertiaryLabelColor]
+                 : [[NSColor tertiaryLabelColor] colorWithAlphaComponent:0.6];
+  NSAffineTransform *t = [NSAffineTransform transform];
+  NSBezierPath *glyph = [FVToolbarGlyph (kind) copy];
+  /* The glyphs are drawn bottom-up; a button is a flipped view. */
+  if ([self isFlipped])
+    {
+      [t translateXBy:floor (NSMidX ([self bounds]) - 10) yBy:floor (NSMidY ([self bounds]) + 10)];
+      [t scaleXBy:1 yBy:-1];
+    }
+  else
+    [t translateXBy:floor (NSMidX ([self bounds]) - 10) yBy:floor (NSMidY ([self bounds]) - 10)];
+  [glyph transformUsingAffineTransform:t];
+  [ink set];
+  [glyph stroke];
+  RELEASE (glyph);
+}
+
+@end
 
 static NSButton *
 FVToolbarButton (NSView *view, NSString *title, SEL action, id target,
                  CGFloat x, NSUInteger kind)
 {
-  NSButton *button = FVButton (view, title, action, target, x, 36);
-  [button setImage:FVToolbarImage (kind)];
+  FVToolButton *button = AUTORELEASE ([[FVToolButton alloc]
+      initWithFrame:NSMakeRect (x, 0, 36, 30)]);
+  [button setTarget:target];
+  [button setAction:action];
+  [view addSubview:button];
+  [button setGlyphKind:kind];
   [button setImagePosition:NSImageOnly];
   [button setBordered:NO];
   [button setToolTip:title];
@@ -3386,6 +3536,14 @@ FVClickStayedPut (NSEvent *down)
   return YES;
 }
 
+/* The current view's button (List, Columns, Icons) shows it. */
+- (void)updateModeButtons
+{
+  NSUInteger i;
+  for (i = 0; i < [modeButtons count]; i++)
+    [(FVToolButton *)[modeButtons objectAtIndex:i] setOn:(NSInteger)i == mode];
+}
+
 - (void)listMode:(id)sender
 {
   [self endEditingName:NO];
@@ -3393,6 +3551,7 @@ FVClickStayedPut (NSEvent *down)
     [table selectRowIndexes:[icons selection] byExtendingSelection:NO];
   mode = 0;
   [[NSUserDefaults standardUserDefaults] setInteger:mode forKey:@"ViewMode"];
+  [self updateModeButtons];
   [browser removeFromSuperview];
   [scroll setDocumentView:table];
   [host addSubview:scroll];
@@ -3407,6 +3566,7 @@ FVClickStayedPut (NSEvent *down)
     icons = [[FVIconView alloc] initWithOwner:self];
   mode = 2;
   [[NSUserDefaults standardUserDefaults] setInteger:mode forKey:@"ViewMode"];
+  [self updateModeButtons];
   [browser removeFromSuperview];
   /* GNUstep may defer releasing the old header clip view. Clear its document
      before moving the header into another clip view on the next list switch. */
@@ -3456,6 +3616,7 @@ FVClickStayedPut (NSEvent *down)
     }
   mode = 1;
   [[NSUserDefaults standardUserDefaults] setInteger:mode forKey:@"ViewMode"];
+  [self updateModeButtons];
   [scroll removeFromSuperview];
   [host addSubview:browser];
   [browser loadColumnZero];
