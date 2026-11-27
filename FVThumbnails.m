@@ -18,6 +18,7 @@
  */
 
 #import "FVThumbnails.h"
+#import <AppKit/AppKit.h>
 #include <signal.h>
 #include <unistd.h>
 
@@ -49,6 +50,86 @@
       target = RETAIN (receiver);
     }
   return self;
+}
+
+/* Still images GNUstep decodes itself (libpng, libjpeg, libtiff, giflib),
+   scaled to fit 256 pixels by averaging each block of source pixels:
+   NextBSD's ffmpeg is built for video and has no image decoders. */
+static const NSUInteger FVThumbnailSide = 256;
+static const unsigned long long FVThumbnailMaxBytes = 64ULL * 1024 * 1024;
+
+- (NSData *)renderImage
+{
+  NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:path
+                                                                             error:NULL];
+  if ([attributes fileSize] == 0 || [attributes fileSize] > FVThumbnailMaxBytes)
+    return nil;
+  NSData *file = [NSData dataWithContentsOfFile:path];
+  NSBitmapImageRep *source = nil;
+  NSArray *reps = file ? [NSBitmapImageRep imageRepsWithData:file] : nil;
+  NSUInteger i;
+  for (i = 0; i < [reps count] && !source; i++)
+    if ([[reps objectAtIndex:i] isKindOfClass:[NSBitmapImageRep class]])
+      source = [reps objectAtIndex:i];
+  NSInteger sw = [source pixelsWide], sh = [source pixelsHigh];
+  if (!source || sw <= 0 || sh <= 0 || [self isCancelled])
+    return nil;
+  CGFloat scale = MIN (1.0, (CGFloat)FVThumbnailSide / MAX (sw, sh));
+  NSInteger dw = MAX (1, (NSInteger)floor (sw * scale)), dh = MAX (1, (NSInteger)floor (sh * scale));
+  NSBitmapImageRep *thumb = AUTORELEASE ([[NSBitmapImageRep alloc]
+      initWithBitmapDataPlanes:NULL pixelsWide:dw pixelsHigh:dh bitsPerSample:8
+               samplesPerPixel:4 hasAlpha:YES isPlanar:NO
+                colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:dw * 4 bitsPerPixel:32]);
+  unsigned char *out = [thumb bitmapData];
+  NSInteger spp = [source samplesPerPixel];
+  BOOL fast = [source bitsPerSample] == 8 && ![source isPlanar] && spp >= 1 && spp <= 4
+              && [source bitmapData] != NULL;
+  BOOL alpha = [source hasAlpha];
+  unsigned char *in = [source bitmapData];
+  NSInteger row = [source bytesPerRow], bpp = [source bitsPerPixel] / 8;
+  NSInteger x, y;
+  for (y = 0; y < dh && ![self isCancelled]; y++)
+    for (x = 0; x < dw; x++)
+      {
+        NSInteger x0 = x * sw / dw, x1 = MAX (x0 + 1, (x + 1) * sw / dw);
+        NSInteger y0 = y * sh / dh, y1 = MAX (y0 + 1, (y + 1) * sh / dh);
+        /* At most 8 by 8 samples a pixel: enough to smooth, quick on big photos. */
+        NSInteger stepx = MAX (1, (x1 - x0) / 8), stepy = MAX (1, (y1 - y0) / 8);
+        unsigned long r = 0, g = 0, b = 0, a = 0, n = 0;
+        NSInteger sx, sy;
+        for (sy = y0; sy < y1; sy += stepy)
+          for (sx = x0; sx < x1; sx += stepx)
+            {
+              unsigned int pr, pg, pb, pa;
+              if (fast)
+                {
+                  unsigned char *p = in + sy * row + sx * bpp;
+                  if (spp >= 3)
+                    {
+                      pr = p[0], pg = p[1], pb = p[2];
+                      pa = alpha ? p[spp - 1] : 255;
+                    }
+                  else
+                    {
+                      pr = pg = pb = p[0];
+                      pa = alpha ? p[1] : 255;
+                    }
+                }
+              else
+                {
+                  NSColor *c = [[source colorAtX:sx y:sy]
+                      colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
+                  pr = 255 * [c redComponent], pg = 255 * [c greenComponent];
+                  pb = 255 * [c blueComponent], pa = 255 * [c alphaComponent];
+                }
+              r += pr, g += pg, b += pb, a += pa, n++;
+            }
+        unsigned char *q = out + y * dw * 4 + x * 4;
+        q[0] = r / n, q[1] = g / n, q[2] = b / n, q[3] = a / n;
+      }
+  if ([self isCancelled])
+    return nil;
+  return [thumb representationUsingType:NSPNGFileType properties:nil];
 }
 
 - (NSData *)renderWithTool:(NSString *)name arguments:(NSArray *)arguments
@@ -130,7 +211,12 @@
           NSArray *movies = [NSArray arrayWithObjects:@"mp4", @"m4v", @"mov", @"mkv",
               @"avi", @"webm", @"mpg", @"mpeg", @"mts", @"m2ts", @"ts", @"wmv",
               @"flv", @"ogv", @"3gp", nil];
-          if ([movies containsObject:[[path pathExtension] lowercaseString]])
+          NSArray *images = [NSArray arrayWithObjects:@"png", @"jpg", @"jpeg", @"gif",
+              @"tif", @"tiff", @"bmp", nil];
+          NSString *extension = [[path pathExtension] lowercaseString];
+          if ([images containsObject:extension])
+            data = [self renderImage];
+          if (!data && [movies containsObject:extension])
             data = [self renderWithTool:@"ffmpegthumbnailer"
                 arguments:[NSArray arrayWithObjects:@"-i", path, @"-o", output,
                     @"-s", @"256", @"-c", @"png", @"-m", nil] output:output];
