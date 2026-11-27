@@ -16,5 +16,6 @@
 <h2>Renaming and new folders</h2>
 <ul>
   <li>Select an item and click its name a second time, press <kbd>F2</kbd>, or choose <b>File → Rename</b>, to edit the name in place. In the Mac style <kbd>Return</kbd> renames too. While you edit, <kbd>Return</kbd> keeps the new name and <kbd>Esc</kbd> keeps the old one.</li>
+  <li>Some items can't be renamed, and <b>Rename</b> is greyed out for them: the startup disk, other disks, ZFS datasets (such as a home folder of its own), and anything in a folder you can't change, such as <b>/System</b>. In a shared folder like <b>/tmp</b> you can rename only your own items.</li>
   <li><b>File → New Folder</b> makes a folder called New Folder and lets you name it at once.</li>
 </ul>

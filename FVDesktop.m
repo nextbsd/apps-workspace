@@ -1130,7 +1130,7 @@ FVCompareDesktopItems (id a, id b, void *context)
   if (action == @selector (eject:))
     return count > 0 && FVCanEjectPaths ([self selectedPaths]);
   if (action == @selector (rename:))
-    return count == 1 && !disk;
+    return count == 1 && !disk && FVCanRename ([[self selectedPaths] objectAtIndex:0]);
   if (action == @selector (addToDock:) || action == @selector (addFavorite:))
     return count > 0 && !disk && [[self agent] validateMenuItem:item];
   return count > 0 && !disk;
@@ -1304,7 +1304,7 @@ FVCompareDesktopItems (id a, id b, void *context)
 - (void)rename:(id)sender
 {
   NSArray *paths = [self selectedPaths];
-  if ([paths count] == 1 && ![self selectionHasDisk])
+  if ([paths count] == 1 && ![self selectionHasDisk] && FVCanRename ([paths objectAtIndex:0]))
     [self beginEditing:[paths objectAtIndex:0]];
 }
 

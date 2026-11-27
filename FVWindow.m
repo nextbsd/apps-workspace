@@ -3250,7 +3250,7 @@ FVThumbnailKey (NSString *file)
 - (void)rename:(id)sender
 {
   NSArray *selected = [self selectedPaths];
-  if ([selected count] != 1 || operation)
+  if ([selected count] != 1 || operation || !FVCanRename ([selected objectAtIndex:0]))
     return;
   [self beginEditingName:[selected objectAtIndex:0]];
 }
@@ -4265,7 +4265,7 @@ FVThumbnailKey (NSString *file)
   if (action == @selector (newFolder:))
     return !operation;
   if (action == @selector (rename:))
-    return count == 1 && !operation;
+    return count == 1 && !operation && FVCanRename ([[self selectedPaths] objectAtIndex:0]);
   if (action == @selector (openWith:))
     return count > 0;
   if (action == @selector (copy:) || action == @selector (cut:) || action == @selector (open:)
