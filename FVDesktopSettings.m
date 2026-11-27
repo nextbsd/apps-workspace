@@ -295,6 +295,11 @@ FVTitleForValue (NSString *key, NSString *value)
   return [self effectiveValueForKey:key mode:[self windowMode]];
 }
 
++ (BOOL)returnRenames
+{
+  return [[self effectiveValueForKey:FVWindowStyleKey] isEqual:@"mac"];
+}
+
 + (BOOL)desktopShowsDisks
 {
   return [[self effectiveValueForKey:FVDesktopIconsKey] isEqual:@"disks"];

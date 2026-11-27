@@ -18,6 +18,7 @@
  */
 
 #import "FVIconView.h"
+#import "FVDesktopSettings.h"
 #import "FVWindow.h"
 #import "FVModel.h"
 
@@ -342,9 +343,12 @@
     next -= [self columns];
   else if (c == '\r' || c == NSEnterCharacter)
     {
-      /* Return opens, as a double click does; Rename is in the File
-         menu, or a slow second click on the name. */
-      [owner open:self];
+      /* Return renames in the Mac style, as a Mac does, and opens in the
+         others, as a double click does. */
+      if (![FVDesktopSettings returnRenames])
+        [owner open:self];
+      else if ([selection count] == 1)
+        [owner rename:self];
       return;
     }
   else
