@@ -64,9 +64,10 @@ extern NSString *const FVDesktopSettingsChangedNotification;
    otherwise. */
 + (void)syncWindowServer;
 + (void)syncScrollerStyle;
-/* Whether the desktop shows files and disks: the user's NBDesktopIcons,
-   else the style's default (Mac and Windows yes, NeXT no). */
-+ (BOOL)desktopIconsShown;
+/* Whether the desktop shows the disks beside what's in ~/Desktop (always
+   shown): the user's NBDesktopIcons, else the style's default (Mac yes,
+   NeXT and Windows no). */
++ (BOOL)desktopShowsDisks;
 /* WindowServer's focus follows the pointer except with the Mac menu bar. */
 + (void)syncFocusFollowsMouse;
 

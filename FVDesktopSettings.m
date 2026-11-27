@@ -43,9 +43,11 @@ static NSString *const FVScrollerStyleKey = @"NBScrollerStyle";
    told of a change. */
 static NSString *const FVAppearanceKey = @"NBAppearance";
 static NSString *const FVWindowStyleKey = @"NBWindowStyle";
-/* NBDesktopIcons (show or hide): files and disks on the desktop. Not the
-   theme's: the style decides by default (Mac and Windows show them, NeXT
-   doesn't). */
+/* NBDesktopIcons: what the desktop shows. "files", what's in ~/Desktop;
+   "disks", the startup disk and the connected disks as well. Not the
+   theme's: the style decides by default (Mac shows the disks, as a Mac
+   does; NeXT and Windows, only the files, as Windows 11 does). The older
+   "show" and "hide" read as "disks" and "files". */
 static NSString *const FVDesktopIconsKey = @"NBDesktopIcons";
 
 /* The per-mode dictionaries, { stacking = {...}; }: the user's in
@@ -112,7 +114,7 @@ FVAllowedValues (NSString *key)
   if ([key isEqual:FVWindowStyleKey])
     return [NSArray arrayWithObjects:@"nextstep", @"mac", @"tiling", nil];
   if ([key isEqual:FVDesktopIconsKey])
-    return [NSArray arrayWithObjects:@"show", @"hide", nil];
+    return [NSArray arrayWithObjects:@"files", @"disks", nil];
   return nil;
 }
 
@@ -136,7 +138,7 @@ FVValueTitles (NSString *key)
   if ([key isEqual:FVWindowStyleKey])
     return [NSArray arrayWithObjects:@"NeXT", @"Mac", @"Windows", nil];
   if ([key isEqual:FVDesktopIconsKey])
-    return [NSArray arrayWithObjects:@"Show", @"Hide", nil];
+    return [NSArray arrayWithObjects:@"Files and folders", @"Files, folders and disks", nil];
   return nil;
 }
 
@@ -169,6 +171,13 @@ FVIsPerMode (NSString *key)
 static NSString *
 FVValidValue (id value, NSString *key)
 {
+  /* Desktop icons' values from before files and disks: Show put the
+     disks on the desktop too; Hide put nothing, and now the files are
+     always there. */
+  if ([key isEqual:FVDesktopIconsKey] && [value isEqual:@"show"])
+    return @"disks";
+  if ([key isEqual:FVDesktopIconsKey] && [value isEqual:@"hide"])
+    return @"files";
   if ([value isKindOfClass:[NSString class]] && [FVAllowedValues (key) containsObject:value])
     return value;
   return nil;
@@ -201,8 +210,8 @@ FVTitleForValue (NSString *key, NSString *value)
 + (NSString *)themeDefaultForKey:(NSString *)key mode:(NSString *)mode
 {
   if ([key isEqual:FVDesktopIconsKey])
-    return [[self effectiveValueForKey:FVWindowStyleKey mode:mode] isEqual:@"nextstep"]
-               ? @"hide" : @"show";
+    return [[self effectiveValueForKey:FVWindowStyleKey mode:mode] isEqual:@"mac"]
+               ? @"disks" : @"files";
   NSDictionary *info = [[GSTheme theme] infoDictionary];
   NSString *value = nil;
   if (FVIsPerMode (key))
@@ -286,9 +295,9 @@ FVTitleForValue (NSString *key, NSString *value)
   return [self effectiveValueForKey:key mode:[self windowMode]];
 }
 
-+ (BOOL)desktopIconsShown
++ (BOOL)desktopShowsDisks
 {
-  return [[self effectiveValueForKey:FVDesktopIconsKey] isEqual:@"show"];
+  return [[self effectiveValueForKey:FVDesktopIconsKey] isEqual:@"disks"];
 }
 
 /* ---- WindowServer ---- */

@@ -38,17 +38,21 @@ static const CGFloat FVCellWidth = 100;
 static const CGFloat FVCellHeight = 88;
 static const CGFloat FVIconSize = 48;
 
-/* How new icons are ordered: Workspace's defaults. Where the user put each
-   one ({path = "column row";}) is a file of its own in the account's
-   Preferences: Workspace's background process shares its defaults and
-   would write an older copy of them back. */
+/* How icons are ordered: Workspace's defaults. Where the user put an icon
+   by moving it ({path = "column row";}) is a file of its own in the
+   account's Preferences: Workspace's background process shares its
+   defaults and would write an older copy of them back. Only the icons the
+   user moved are in it; the rest flow from the top corner in order (the
+   disks, then the files), moving up as others go. The file before this,
+   org.nextbsd.Workspace.Desktop.plist, kept every icon and is no longer
+   read. */
 static NSString *const FVDesktopSortKey = @"DesktopIconSort";
 
 static NSString *
 FVDesktopPositionsPath (void)
 {
   return [NSHomeDirectory ()
-      stringByAppendingPathComponent:@"Library/Preferences/org.nextbsd.Workspace.Desktop.plist"];
+      stringByAppendingPathComponent:@"Library/Preferences/org.nextbsd.Workspace.DesktopPlaced.plist"];
 }
 /* Dragged icons that include a disk: only the desktop takes them, so a
    disk can be moved about but never dropped into a folder. */
@@ -117,7 +121,8 @@ static NSInteger FVCompareDesktopItems (id a, id b, void *context);
   NSString *desktopPath;
   NSTimer *monitor;
   NSArray *stamp;
-  BOOL shown;
+  BOOL shown;			/* set up: the icons are there once -update ran */
+  BOOL disks;			/* the startup disk and /Volumes too */
   BOOL banding;
   BOOL dragPending;
   NSRect band;
@@ -454,14 +459,18 @@ FVCompareDesktopItems (id a, id b, void *context)
 - (void)reloadEntries
 {
   NSMutableArray *list = [NSMutableArray array];
-  FVDesktopEntry *entry = AUTORELEASE ([[FVDesktopEntry alloc] init]);
-  entry->path = [@"/" copy];
-  entry->name = [@"NextBSD" copy];
-  entry->disk = entry->startup = YES;
-  [list addObject:entry];
-  NSArray *volumes = [FVVolumesInMountRoots ()
-      sortedArrayUsingSelector:@selector (localizedCaseInsensitiveCompare:)];
+  FVDesktopEntry *entry;
+  NSArray *volumes = disks ? [FVVolumesInMountRoots ()
+      sortedArrayUsingSelector:@selector (localizedCaseInsensitiveCompare:)] : [NSArray array];
   NSUInteger i;
+  if (disks)
+    {
+      entry = AUTORELEASE ([[FVDesktopEntry alloc] init]);
+      entry->path = [@"/" copy];
+      entry->name = [@"NextBSD" copy];
+      entry->disk = entry->startup = YES;
+      [list addObject:entry];
+    }
   for (i = 0; i < [volumes count]; i++)
     {
       entry = AUTORELEASE ([[FVDesktopEntry alloc] init]);
@@ -485,9 +494,9 @@ FVCompareDesktopItems (id a, id b, void *context)
   while ((entry = [e nextObject]) != nil)
     [paths addObject:entry->path];
   [selected intersectSet:paths];
+  /* The icons the user moved stay where they are; the others flow in
+     order around them. Clean Up and Sort By let them all flow again. */
   [self layoutEntries];
-  /* Icons stay where they are as others come and go, as on a Mac: Clean
-     Up and Sort By arrange them again. */
   [self savePositions];
   [self selectionChanged];
 }
@@ -559,31 +568,37 @@ FVCompareDesktopItems (id a, id b, void *context)
   [self setNeedsDisplay:YES];
 }
 
+/* The moved icons' cells as they are now. A moved file that's gone from
+   ~/Desktop is forgotten; a moved disk keeps its place while it's away
+   (unplugged, or the disks hidden). */
 - (void)savePositions
 {
   NSMutableDictionary *now = [NSMutableDictionary dictionary];
-  NSEnumerator *e = [entries objectEnumerator];
-  FVDesktopEntry *entry;
-  while ((entry = [e nextObject]) != nil)
-    [now setObject:[NSString stringWithFormat:@"%ld %ld", (long)entry->column, (long)entry->row]
-            forKey:entry->path];
-  if ([now isEqual:[self positions]])
+  NSDictionary *placed = [self positions];
+  NSEnumerator *e = [placed keyEnumerator];
+  NSString *path;
+  while ((path = [e nextObject]) != nil)
+    {
+      FVDesktopEntry *entry = [self entryForPath:path];
+      if (entry)
+        [now setObject:[NSString stringWithFormat:@"%ld %ld", (long)entry->column,
+                                                  (long)entry->row]
+                forKey:path];
+      else if (![path hasPrefix:[desktopPath stringByAppendingString:@"/"]])
+        [now setObject:[placed objectForKey:path] forKey:path];
+    }
+  if ([now isEqual:placed])
     return;
   [[self positions] setDictionary:now];
   [self writePositions];
 }
 
+/* What's in ~/Desktop is always on the desktop; the disks, when the
+   Desktop icons setting says so (the Mac style's default). */
 - (void)update
 {
-  shown = [FVDesktopSettings desktopIconsShown];
-  if (!shown)
-    {
-      [self endEditing:NO];
-      [entries removeAllObjects];
-      [selected removeAllObjects];
-      [self setNeedsDisplay:YES];
-      return;
-    }
+  shown = YES;
+  disks = [FVDesktopSettings desktopShowsDisks];
   [self reloadEntries];
 }
 
@@ -997,9 +1012,14 @@ FVCompareDesktopItems (id a, id b, void *context)
       entry->column = bestC;
       entry->row = bestR;
       [taken addObject:[NSString stringWithFormat:@"%ld %ld", (long)bestC, (long)bestR]];
+      /* Moved by the user: it stays here. */
+      [[self positions] setObject:[NSString stringWithFormat:@"%ld %ld", (long)bestC,
+                                                         (long)bestR]
+                           forKey:entry->path];
     }
+  /* The icons that flow close up around it. */
+  [self layoutEntries];
   [self savePositions];
-  [self setNeedsDisplay:YES];
 }
 
 - (void)moveEntries:(NSArray *)moving byColumns:(NSInteger)dc rows:(NSInteger)dr
@@ -1365,7 +1385,8 @@ FVCompareDesktopItems (id a, id b, void *context)
       FVRunAlert (@"Workspace", @"Can’t Rename", problem, @"OK", nil);
       return;
     }
-  if (entry)
+  /* A moved icon keeps its place under the new name. */
+  if (entry && [[self positions] objectForKey:source])
     [[self positions] setObject:[NSString stringWithFormat:@"%ld %ld", (long)entry->column,
                                                            (long)entry->row]
                          forKey:renamed];
