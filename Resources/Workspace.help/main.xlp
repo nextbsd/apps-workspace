@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Workspace Help: the book Help shows for Workspace (Help → Workspace
+     Help). The format is XLP; see nextbsd/apps-help's README. -->
+<document>
+<header>
+  <title>Workspace Help</title>
+</header>
+
+<chapter id="file-viewer" name="File Viewer windows" src="file-viewer.xlp" keywords="window folder finder">
+  <section id="moving-around" name="Moving around" src="moving-around.xlp" keywords="go back forward folder path"/>
+  <section id="views" name="List, Columns and Icons" src="views.xlp" keywords="view list columns icons hidden thumbnails"/>
+  <section id="locations" name="The Locations list" src="locations.xlp" keywords="favorites sidebar volumes domains"/>
+</chapter>
+<chapter id="working-with-files" name="Working with files" src="files.xlp" keywords="open select rename">
+  <section id="copying-and-moving" name="Copying and moving" src="copying.xlp" keywords="copy move paste duplicate replace"/>
+  <section id="trash" name="The Trash and deleting" src="trash.xlp" keywords="delete trash undo"/>
+</chapter>
+<chapter id="searching" name="Searching for files" src="searching.xlp" keywords="find search"/>
+<chapter id="get-info" name="Get Info" src="get-info.xlp" keywords="inspector permissions owner"/>
+<chapter id="safety" name="How Workspace keeps your files safe" src="safety.xlp" keywords="replace copy safe"/>
+</document>

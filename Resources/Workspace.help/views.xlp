@@ -1,0 +1,11 @@
+<p>The <b>View</b> menu shows a folder three ways.</p>
+<table>
+  <tr><th>View</th><th>Shows</th></tr>
+  <tr><td><b>List</b> <kbd>⌘1</kbd></td><td>Name, size, kind and date. Click a column title to sort by it.</td></tr>
+  <tr><td><b>Columns</b> <kbd>⌘2</kbd></td><td>The folders that hold this one, side by side.</td></tr>
+  <tr><td><b>Icons</b> <kbd>⌘3</kbd></td><td>Large icons. <b>Larger Icons</b> <kbd>⌘+</kbd> and <b>Smaller Icons</b> <kbd>⌘-</kbd> change their size.</td></tr>
+</table>
+<ul>
+  <li><b>View → Show Hidden Files</b> shows names that start with a dot. <b>Folders First</b> keeps folders at the top.</li>
+  <li>Pictures and movies show thumbnails, which you can turn off in Workspace's Preferences.</li>
+</ul>

@@ -1,0 +1,10 @@
+<ul>
+  <li><b>Local User</b> holds your home folder and its standard folders, plus the Trash. <b>Favorites</b> holds the folders you add. <b>Domains</b> holds Local, Network and System. <b>Volumes</b> lists the disks that are connected.</li>
+  <li><b>File → Add to Favorites</b> <kbd>⌃⌘T</kbd> adds the selected folders to Favorites, or the folder you are in when nothing is selected. Favorites appears below Local User once it has a folder in it.</li>
+  <li>Drag folders onto the Favorites heading, or between favorites where a line shows, to add them there. Drag a favorite up or down to change the order. A folder is only listed once.</li>
+  <li>A favorite whose folder is gone, or on a disk that isn't connected, is greyed out until the folder is back. Right-click a favorite to remove it from the list.</li>
+  <li>Dropping files onto a location, favorites included, copies them there.</li>
+</ul>
+<related>
+  <ref book="NextBSD" id="eject">Ejecting a disk</ref>
+</related>

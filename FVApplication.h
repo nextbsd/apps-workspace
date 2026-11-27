@@ -34,7 +34,6 @@
   FVDesktopSettings *desktopSettings;
   FVDockSettings *dockSettings;
   FVBackgroundSettings *backgroundSettings;
-  NSWindow *helpWindow;
 }
 
 - (BOOL)openFile:(NSString *)path withApplication:(NSString *)application

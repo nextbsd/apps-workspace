@@ -1,0 +1,10 @@
+<ul>
+  <li>Double-click a folder to open it. Back, Forward, Up and Home are at the left of the toolbar, and in the <b>Go</b> menu.</li>
+  <li>Click the path above the files to jump to any folder that contains this one.</li>
+  <li><b>Go → Go to Folder…</b> takes a path. <kbd>Tab</kbd> completes folder names, and the field's menu remembers recent folders.</li>
+  <li><b>File → New Window</b> and <b>Open Folder in New Window</b> give you another viewer with its own history.</li>
+</ul>
+<related>
+  <ref id="views">List, Columns and Icons</ref>
+  <ref id="locations">The Locations list</ref>
+</related>
