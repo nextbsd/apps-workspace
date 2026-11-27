@@ -610,3 +610,31 @@ FVListDate (NSDate *date)
 }
 
 @end
+
+BOOL
+FVCanRename (NSString *path)
+{
+  struct stat st, parent;
+  NSString *folder;
+  const unsigned long locked = UF_IMMUTABLE | SF_IMMUTABLE | UF_APPEND | SF_APPEND;
+  uid_t uid = geteuid ();
+
+  if ([path length] == 0 || [path isEqual:@"/"])
+    return NO;
+  folder = [path stringByDeletingLastPathComponent];
+  if (lstat ([path fileSystemRepresentation], &st) != 0
+      || stat ([folder fileSystemRepresentation], &parent) != 0)
+    return NO;
+  /* A mount point (a disk, a dataset) is on another device than its
+     folder: it can't be renamed, only its mount moved. */
+  if (st.st_dev != parent.st_dev)
+    return NO;
+  if ((st.st_flags & locked) || (parent.st_flags & locked))
+    return NO;
+  if (access ([folder fileSystemRepresentation], W_OK | X_OK) != 0)
+    return NO;
+  /* A sticky folder (/tmp): only the item's owner or the folder's. */
+  if ((parent.st_mode & S_ISVTX) && uid != 0 && uid != st.st_uid && uid != parent.st_uid)
+    return NO;
+  return YES;
+}

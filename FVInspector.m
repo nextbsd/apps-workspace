@@ -381,8 +381,11 @@ static const CGFloat FVInspectorWidth = 380, FVInspectorHeight = 520;
       BOOL exists = lstat ([item fileSystemRepresentation], &st) == 0;
       [icon setImage:[viewer iconForPath:item]];
       [nameField setStringValue:[item lastPathComponent]];
-      [nameField setEditable:exists && ![item isEqual:@"/"]];
-      [nameField setEnabled:exists && ![item isEqual:@"/"]];
+      /* Only a name the user may change: not a disk, a dataset, or an
+         item in a folder they can't write. */
+      BOOL renamable = exists && FVCanRename (item);
+      [nameField setEditable:renamable];
+      [nameField setEnabled:renamable];
       [kindLabel setStringValue:[info kind]];
       if ([info directory])
         {

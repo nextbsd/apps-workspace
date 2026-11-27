@@ -27,6 +27,12 @@ BOOL FVExcludeRunFilesystems (void);
    folders NextBSD makes (Local, Network, System, Volumes, Developer), as a
    Mac shows only its own folders there. */
 BOOL FVNameIsHidden (NSString *folder, NSString *name);
+/* Whether the user can rename the item: not the startup disk, a disk or
+   a dataset (a mount point), in a folder the user may change (write and
+   search, and with a sticky folder the user owns the item or the
+   folder), and neither locked (immutable or append-only). Rename is
+   offered only then. */
+BOOL FVCanRename (NSString *path);
 
 @interface FVMounts : NSObject
 
