@@ -30,6 +30,7 @@ NSInteger FVRunAlert (NSString *title, NSString *heading, NSString *message,
 NSArray *FVVolumesInMountRoots (void);
 
 @class FVOperations, FVIconView;
+@protocol FVModalDialog;
 @interface FVWindow : NSWindowController <NSTextFieldDelegate>
 {
   NSString *path;
@@ -63,6 +64,11 @@ NSArray *FVVolumesInMountRoots (void);
   NSButton *backButton, *forwardButton, *upButton;
   id rewind;
   NSButton *snapshotsButton, *rewindButton;
+  NSTableColumn *changeColumn;
+  id changesSwitch;
+  id spinner;
+  NSString *statusNote;
+  NSInteger modeBeforeRewind;
   NSBrowser *browser;
   FVIconView *icons;
   NSMutableDictionary *browserRows;
@@ -142,5 +148,17 @@ NSArray *FVVolumesInMountRoots (void);
 - (NSString *)currentPath;
 /* Renames an item in place; returns why it can't, or nil once started. */
 - (NSString *)renamePath:(NSString *)source toName:(NSString *)name;
+/* Whether a copy, move or the like is under way. */
+- (BOOL)hasOperation;
+- (NSInteger)runDialog:(id<FVModalDialog>)dialog;
+/* Selects these items once the folder has loaded. */
+- (void)selectPaths:(NSArray *)paths;
+/* A note in the status line in place of the item count, with a spinner
+   while busy (Take Snapshot Now); -clearNote puts the count back. */
+- (void)showNote:(NSString *)message busy:(BOOL)busy;
+- (void)clearNote;
+/* Rewind (FVRewind) began or ended: the list gets or loses its Rewind
+   column and Show only changes. */
+- (void)rewindDidChange;
 
 @end

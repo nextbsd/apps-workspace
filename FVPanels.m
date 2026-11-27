@@ -257,6 +257,8 @@ FVItemsPhrase (NSArray *sources)
     text = [NSString stringWithFormat:@"Copying %@ to %@", items, folder];
   else if ([kind isEqual:@"move"])
     text = [NSString stringWithFormat:@"Moving %@ to %@", items, folder];
+  else if ([kind isEqual:@"restore"])
+    text = [NSString stringWithFormat:@"Restoring %@ to %@", items, folder];
   else if ([kind isEqual:@"duplicate"])
     text = [NSString stringWithFormat:@"Duplicating %@", items];
   else if ([kind isEqual:@"trash"])

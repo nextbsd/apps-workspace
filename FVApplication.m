@@ -195,9 +195,13 @@ FVMigrateFileViewerDefaults (void)
           [NSArray arrayWithObjects:@"1", @"2", @"3", @"+", @"-", @"h", @"", @"r", @"f", nil]);
   FVMenu (menu, @"Go",
           [NSArray arrayWithObjects:@"Back", @"Forward", @"Parent Folder", @"Home",
-                                    @"Go to Folder…", nil],
-          [NSArray arrayWithObjects:@"back:", @"forward:", @"parent:", @"home:", @"go:", nil],
-          [NSArray arrayWithObjects:@"[", @"]", @"u", @"", @"g", nil]);
+                                    @"Go to Folder…", @"Rewind", nil],
+          [NSArray arrayWithObjects:@"back:", @"forward:", @"parent:", @"home:", @"go:",
+                                    @"rewind:", nil],
+          [NSArray arrayWithObjects:@"[", @"]", @"u", @"", @"g", @"r", nil]);
+  /* Command-Option-R: Command-R is Refresh. */
+  [[[[menu itemWithTitle:@"Go"] submenu] itemWithTitle:@"Rewind"]
+      setKeyEquivalentModifierMask:NSCommandKeyMask | NSAlternateKeyMask];
   FVMenu (menu, @"Window", [NSArray arrayWithObject:@"Minimize"],
           [NSArray arrayWithObject:@"performMiniaturize:"], [NSArray arrayWithObject:@"m"]);
   FVMenu (menu, @"Help", [NSArray arrayWithObject:@"Workspace Help"],
