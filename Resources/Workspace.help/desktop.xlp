@@ -15,4 +15,4 @@
   <li><b>Appearance</b>: Dark or Light.</li>
   <li><b>Desktop icons</b>: what's in your Desktop folder is always on the desktop. <b>Files, folders and disks</b> adds the startup disk, NextBSD, and each disk you connect. The Mac style shows the disks; NeXT and Windows show <b>Files and folders</b> only. Icons line up from the top corner, disks first, and move up when one goes away. An icon you drag stays where you put it, until <b>Clean Up</b> or <b>Sort By</b> lines them all up again.</li>
 </ul>
-<p>Each setting starts at <b>Use theme default</b>. Choosing that again goes back to the theme's choice.</p>
+<p>Each setting starts at <b>Use theme default</b> (Desktop icons at <b>Use style default</b>). Choosing that again goes back to the theme's or the style's choice.</p>
