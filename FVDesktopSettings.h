@@ -68,6 +68,11 @@ extern NSString *const FVDesktopSettingsChangedNotification;
    shown): the user's NBDesktopIcons, else the style's default (Mac yes,
    NeXT and Windows no). */
 + (BOOL)desktopShowsDisks;
+/* Whether Return renames the one selected item, as on a Mac (the Mac
+   window style), rather than opening what's selected, as NeXTSTEP and
+   Windows do. Command-O and Command-Down open in every style; F2 and a
+   slow second click on the name rename in every style. */
++ (BOOL)returnRenames;
 /* WindowServer's focus follows the pointer except with the Mac menu bar. */
 + (void)syncFocusFollowsMouse;
 

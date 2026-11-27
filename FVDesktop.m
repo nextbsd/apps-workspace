@@ -1439,6 +1439,13 @@ FVCompareDesktopItems (id a, id b, void *context)
       [self rename:self];
       return;
     }
+  /* Return renames in the Mac style and opens in the others. */
+  if ((c == '\r' || c == NSEnterCharacter) && [FVDesktopSettings returnRenames])
+    {
+      if ([selected count] == 1)
+        [self rename:self];
+      return;
+    }
   if ((c == NSDownArrowFunctionKey && (flags & NSCommandKeyMask)) || c == '\r'
       || c == NSEnterCharacter)
     {

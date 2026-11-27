@@ -18,6 +18,7 @@
  */
 
 #import "FVWindow.h"
+#import "FVDesktopSettings.h"
 #import <GNUstepGUI/GSTheme.h>
 #import "FVRewind.h"
 #import "FVApplication.h"
@@ -1075,8 +1076,14 @@ FVClickStayedPut (NSEvent *down)
      back to now. */
   if ([(FVWindow *)[self target] handleRewindKey:event])
     return;
-  /* Return opens, as a double click does, and so does Command-Down, as
-     on a Mac; F2 renames, as on Windows. */
+  /* Return renames in the Mac style and opens in the others; Command-Down
+     opens, as on a Mac; F2 renames, as on Windows. */
+  if ((key == '\r' || key == NSEnterCharacter) && [FVDesktopSettings returnRenames])
+    {
+      if ([self numberOfSelectedRows] == 1)
+        [NSApp sendAction:@selector (rename:) to:[self target] from:self];
+      return;
+    }
   if (key == '\r' || key == NSEnterCharacter
       || (key == NSDownArrowFunctionKey && ([event modifierFlags] & NSCommandKeyMask)))
     {
@@ -1167,8 +1174,14 @@ FVClickStayedPut (NSEvent *down)
   [NSObject cancelPreviousPerformRequestsWithTarget:self];
   NSString *text = [event charactersIgnoringModifiers];
   unichar key = [text length] ? [text characterAtIndex:0] : 0;
-  /* Return opens, as a double click does, and so does Command-Down, as
-     on a Mac; F2 renames, as on Windows. */
+  /* Return renames in the Mac style and opens in the others; Command-Down
+     opens, as on a Mac; F2 renames, as on Windows. */
+  if ((key == '\r' || key == NSEnterCharacter) && [FVDesktopSettings returnRenames])
+    {
+      if ([[self selectedCells] count] == 1)
+        [NSApp sendAction:@selector (rename:) to:nil from:self];
+      return;
+    }
   if ((key == '\r' || key == NSEnterCharacter
        || (key == NSDownArrowFunctionKey && ([event modifierFlags] & NSCommandKeyMask)))
       && [[self selectedCells] count] > 0)
@@ -3232,8 +3245,8 @@ FVThumbnailKey (NSString *file)
     }
 }
 
-/* Rename edits the selected item's name in place. Return on a single
-   selected item and a slow second click on its name start it too. */
+/* Rename edits the selected item's name in place. F2, a slow second
+   click on its name and, in the Mac style, Return start it too. */
 - (void)rename:(id)sender
 {
   NSArray *selected = [self selectedPaths];

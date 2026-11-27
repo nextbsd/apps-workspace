@@ -1,11 +1,20 @@
 <h2>Selecting and opening</h2>
 <ul>
   <li>Click to select. <kbd>Shift</kbd>-click selects a range, and <kbd>⌘</kbd>-click adds or removes one item. <b>Edit → Select All</b> <kbd>⌘A</kbd> selects everything.</li>
-  <li>Double-click a file, or press <kbd>Return</kbd>, to open it in its application. When no application is saved for that kind of file, Workspace asks which one to use.</li>
+  <li>Double-click a file, or choose <b>File → Open</b> <kbd>⌘O</kbd>, to open it in its application. <kbd>⌘↓</kbd> opens too, and so does <kbd>Return</kbd> in the NeXT and Windows styles. When no application is saved for that kind of file, Workspace asks which one to use.</li>
   <li><b>File → Open With…</b> lists the applications with their icons; those that open this kind of file come first. Check <b>Always open … files with this application</b> to remember the choice. <b>Other…</b> finds an application that isn't listed.</li>
 </ul>
+<h2>Return opens or renames, by style</h2>
+<p>The window style in <b>Preferences → Desktop</b> decides what <kbd>Return</kbd> does, as each system does it:</p>
+<table>
+  <tr><th>Style</th><th><kbd>Return</kbd></th><th>Also opens</th><th>Also renames</th></tr>
+  <tr><td><b>NeXT</b></td><td>Opens</td><td>Double-click, <kbd>⌘O</kbd>, <kbd>⌘↓</kbd></td><td>A second click on the name, <kbd>F2</kbd>, <b>File → Rename</b></td></tr>
+  <tr><td><b>Mac</b></td><td>Renames</td><td>Double-click, <kbd>⌘O</kbd>, <kbd>⌘↓</kbd></td><td>A second click on the name, <kbd>F2</kbd>, <b>File → Rename</b></td></tr>
+  <tr><td><b>Windows</b></td><td>Opens</td><td>Double-click, <kbd>⌘O</kbd>, <kbd>⌘↓</kbd></td><td><kbd>F2</kbd>, a second click on the name, <b>File → Rename</b></td></tr>
+</table>
+<p>The same keys work for the files and disks on the desktop.</p>
 <h2>Renaming and new folders</h2>
 <ul>
-  <li>Select an item and press <kbd>Return</kbd>, or click its name a second time, to edit the name in place. <kbd>Return</kbd> keeps the new name; <kbd>Esc</kbd> keeps the old one.</li>
+  <li>Select an item and click its name a second time, press <kbd>F2</kbd>, or choose <b>File → Rename</b>, to edit the name in place. In the Mac style <kbd>Return</kbd> renames too. While you edit, <kbd>Return</kbd> keeps the new name and <kbd>Esc</kbd> keeps the old one.</li>
   <li><b>File → New Folder</b> makes a folder called New Folder and lets you name it at once.</li>
 </ul>
