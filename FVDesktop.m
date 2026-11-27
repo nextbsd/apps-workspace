@@ -82,6 +82,7 @@ static NSInteger FVCompareDesktopItems (id a, id b, void *context);
 @public
   NSString *path;
   NSString *name;
+  NSString *label;
   BOOL disk;
   BOOL startup;
   NSInteger column, row;
@@ -94,6 +95,7 @@ static NSInteger FVCompareDesktopItems (id a, id b, void *context);
 {
   RELEASE (path);
   RELEASE (name);
+  RELEASE (label);
   DEALLOC;
 }
 
@@ -303,11 +305,48 @@ static NSInteger FVCompareDesktopItems (id a, id b, void *context);
       style, NSParagraphStyleAttributeName, nil];
 }
 
+/* The name as shown: whole when it fits in two lines, else shortened in
+   the middle, keeping its start and its end with the extension, as the
+   Finder does ("Screenshot 2026-11…00.10.png"). */
+- (NSString *)labelFor:(FVDesktopEntry *)entry
+{
+  if (entry->label)
+    return entry->label;
+  NSDictionary *attrs = [self labelAttributes:NO];
+  NSSize box = NSMakeSize (FVCellWidth - 6, 1000);
+  CGFloat twoLines = 2 * [[NSFont systemFontOfSize:12] defaultLineHeightForFont] + 1;
+  NSString *name = entry->name;
+  NSString *display = name;
+  if ([name boundingRectWithSize:box options:NSStringDrawingUsesLineFragmentOrigin
+                      attributes:attrs].size.height > twoLines)
+    {
+      NSUInteger length = [name length];
+      NSUInteger tail = MIN (length / 3, [[name pathExtension] length] + 6);
+      NSUInteger head;
+      display = nil;
+      for (head = length - tail; head > 1; head--)
+        {
+          NSString *candidate = [NSString stringWithFormat:@"%@\u2026%@",
+              [name substringToIndex:head], [name substringFromIndex:length - tail]];
+          if ([candidate boundingRectWithSize:box options:NSStringDrawingUsesLineFragmentOrigin
+                                   attributes:attrs].size.height <= twoLines)
+            {
+              display = candidate;
+              break;
+            }
+        }
+      if (display == nil)
+        display = name;
+    }
+  entry->label = [display copy];
+  return entry->label;
+}
+
 /* The name under the icon: at most two lines, as wide as it needs. */
 - (NSRect)labelRectFor:(FVDesktopEntry *)entry
 {
   NSRect cell = [self cellRectForColumn:entry->column row:entry->row];
-  NSRect text = [entry->name boundingRectWithSize:NSMakeSize (FVCellWidth - 6, 32)
+  NSRect text = [[self labelFor:entry] boundingRectWithSize:NSMakeSize (FVCellWidth - 6, 32)
       options:NSStringDrawingUsesLineFragmentOrigin
       attributes:[self labelAttributes:NO]];
   CGFloat width = MIN (FVCellWidth + 2, ceil (NSWidth (text)) + 8);
@@ -671,9 +710,9 @@ FVCompareDesktopItems (id a, id b, void *context)
           NSMutableDictionary *shadow = AUTORELEASE ([[self labelAttributes:NO] mutableCopy]);
           [shadow setObject:[NSColor colorWithCalibratedWhite:0 alpha:.75]
                      forKey:NSForegroundColorAttributeName];
-          [entry->name drawInRect:NSOffsetRect (text, 0, 1) withAttributes:shadow];
+          [[self labelFor:entry] drawInRect:NSOffsetRect (text, 0, 1) withAttributes:shadow];
         }
-      [entry->name drawInRect:text withAttributes:[self labelAttributes:chosen]];
+      [[self labelFor:entry] drawInRect:text withAttributes:[self labelAttributes:chosen]];
     }
   if (banding)
     {

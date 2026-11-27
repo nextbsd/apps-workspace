@@ -226,6 +226,8 @@ FVApplicationBundles (NSArray *paths)
 /* A volume is a mount point directly inside a mount root. On the BSDs the
    mount table is read without waiting, and nothing is stat'ed, so a hung
    network mount can't block the main thread, which polls this every second. */
+static NSString *FVThumbnailKey (NSString *file);
+
 NSArray *
 FVVolumesInMountRoots (void)
 {
@@ -1888,7 +1890,9 @@ FVClickStayedPut (NSEvent *down)
 {
   [self updateNavigationButtons];
   [self endEditingName:NO];
-  [self invalidateThumbnails];
+  /* Thumbnails are kept by path and modification time
+     (FVThumbnailKey): a reload keeps those still good and finishes those
+     being made, instead of starting them all again. */
   NSMutableDictionary *columns = [NSMutableDictionary dictionary];
   NSInteger column;
   for (column = 0; mode == 1 && column <= [browser lastColumn]; column++)
@@ -2718,12 +2722,13 @@ FVClickStayedPut (NSEvent *down)
     }
   if ([FVThumbnailOperation enabled] && [FVThumbnailOperation supportsPath:value])
     {
-      NSImage *preview = [thumbnailCache objectForKey:value];
+      NSString *key = FVThumbnailKey (value);
+      NSImage *preview = [thumbnailCache objectForKey:key];
       if (preview)
         return preview;
-      if (!closed && ![thumbnailRequests containsObject:value])
+      if (!closed && ![thumbnailRequests containsObject:key])
         {
-          [thumbnailRequests addObject:value];
+          [thumbnailRequests addObject:key];
           pendingThumbnails++;
           [self updateActivity];
           FVThumbnailOperation *job = [[FVThumbnailOperation alloc]
@@ -2742,6 +2747,18 @@ FVClickStayedPut (NSEvent *down)
         [iconCache setObject:image forKey:value];
     }
   return image;
+}
+
+/* A thumbnail stays good while its file keeps its path and modification
+   time. */
+static NSString *
+FVThumbnailKey (NSString *file)
+{
+  struct stat st;
+  if (stat ([file fileSystemRepresentation], &st) != 0)
+    return file;
+  return [NSString stringWithFormat:@"%@\n%lld.%ld", file, (long long)st.st_mtim.tv_sec,
+                                    (long)st.st_mtim.tv_nsec];
 }
 
 - (void)invalidateThumbnails
@@ -2790,9 +2807,9 @@ FVClickStayedPut (NSEvent *down)
   NSImage *preview = data ? AUTORELEASE ([[NSImage alloc] initWithData:data]) : nil;
   if (preview && [preview isValid])
     {
-      NSString *file = [result objectForKey:@"path"];
-      [thumbnailCache setObject:preview forKey:file];
-      [thumbnailRequests removeObject:file];
+      NSString *key = FVThumbnailKey ([result objectForKey:@"path"]);
+      [thumbnailCache setObject:preview forKey:key];
+      [thumbnailRequests removeObject:key];
       [self redrawThumbnails];
     }
 }
