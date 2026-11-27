@@ -1,0 +1,18 @@
+<p><b>Workspace → Preferences… → Desktop</b> sets how the whole desktop looks and behaves. Changes apply at once, in every app.</p>
+<p><b>Choose your style</b> picks a set of settings in one click:</p>
+<table>
+  <tr><th>Style</th><th>Gives you</th></tr>
+  <tr><td><b>NeXT</b></td><td>Floating menus at the top left and the Dock down the right, as on NeXTSTEP.</td></tr>
+  <tr><td><b>Mac</b></td><td>A menu bar across the top and a see-through Dock along the bottom.</td></tr>
+  <tr><td><b>Windows</b></td><td>Menus inside each window and a taskbar along the bottom.</td></tr>
+</table>
+<p>You can then change any one setting on its own:</p>
+<ul>
+  <li><b>Dock position</b>: right, left, top or bottom. With the Mac menu bar the Dock can't be at the top.</li>
+  <li><b>Menu style</b>: NeXT's floating menus, a Mac menu bar, or menus in each window.</li>
+  <li><b>Minimize windows</b>: into NeXT miniwindows, into the Dock, or as previews.</li>
+  <li><b>Dock style</b>, <b>Scroller style</b> and <b>Window style</b>: the NeXT, Mac or Windows look of each.</li>
+  <li><b>Appearance</b>: Dark or Light.</li>
+  <li><b>Desktop icons</b>: files and disks on the desktop. The Mac and Windows styles show them; NeXT doesn't, but <b>Show</b> turns them on there too.</li>
+</ul>
+<p>Each setting starts at <b>Use theme default</b>. Choosing that again goes back to the theme's choice.</p>

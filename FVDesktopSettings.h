@@ -28,20 +28,16 @@ extern NSString *const FVDesktopSettingsChangedNotification;
  * defaults (NBDockPosition, NBMinimizeStyle... at the top of its
  * Info.plist), and the user's choice here, saved in NSGlobalDomain under
  * the same key, overrides them. "Use theme default" removes the user's
- * value. The Dock position and the menu style are kept for each window
- * mode (NBWindowMode: stacking, tiling): the user's in NBModeSettings,
- * the theme's in NBModeDefaults. See nextbsd-theme's README and
- * NBDesktopSettings.h.
+ * value. The Dock position and the menu style are kept per window mode
+ * (the user's in NBModeSettings, the theme's in NBModeDefaults), and the
+ * window mode is always stacking: Preferences no longer offers tiling.
+ * See nextbsd-theme's README and NBDesktopSettings.h.
  *
- * The Desktop tab of Workspace Preferences. Switching the window mode
- * sets WindowServer's WindowMode (its tiling) live and applies that
- * mode's Dock position and menu style; the Tiling settings are
- * WindowServer's own (org.nextbsd.WindowServer defaults).
+ * The Desktop tab of Workspace Preferences.
  */
 @interface FVDesktopSettings : NSObject
 {
   NSView *view;
-  NSPopUpButton *modePopUp;
   NSPopUpButton *minimizePopUp;
   NSPopUpButton *dockPopUp;
   NSPopUpButton *menuPopUp;
@@ -51,14 +47,9 @@ extern NSString *const FVDesktopSettingsChangedNotification;
   NSPopUpButton *appearancePopUp;
   NSPopUpButton *desktopIconsPopUp;
   NSMutableArray *presetButtons;
-  NSPopUpButton *layoutPopUp;
-  NSPopUpButton *innerGapPopUp;
-  NSPopUpButton *outerGapPopUp;
-  NSButton *borderCheckbox;
-  NSArray *tilingControls;
 }
 
-/* The window mode in effect: stacking or tiling. */
+/* The window mode in effect: always stacking. */
 + (NSString *)windowMode;
 /* The effective value of a desktop setting: the user's, else the theme's,
    else the built-in one (in the current window mode for the Dock
@@ -67,23 +58,21 @@ extern NSString *const FVDesktopSettingsChangedNotification;
 + (NSString *)effectiveValueForKey:(NSString *)key;
 /* The active theme's default for it, or the built-in one. */
 + (NSString *)themeDefaultForKey:(NSString *)key;
-/* At login: make WindowServer's WindowMode the window mode in effect, if
-   the user's org.nextbsd.WindowServer defaults say otherwise (the theme
-   changed, or the defaults were written elsewhere). */
+/* At login: a saved NBWindowMode of tiling (from before Preferences
+   dropped it) goes back to stacking, and WindowServer's WindowMode
+   follows, if the user's org.nextbsd.WindowServer defaults say
+   otherwise. */
 + (void)syncWindowServer;
 + (void)syncScrollerStyle;
 /* Whether the desktop shows files and disks: the user's NBDesktopIcons,
-   else the style's default (Mac and Windows yes, NeXT no); never while
-   tiling. */
+   else the style's default (Mac and Windows yes, NeXT no). */
 + (BOOL)desktopIconsShown;
-/* Tiling's focus follows the pointer except with the Mac menu bar. */
+/* WindowServer's focus follows the pointer except with the Mac menu bar. */
 + (void)syncFocusFollowsMouse;
 
 - (id)initWithFrame:(NSRect)frame;
 - (NSView *)view;
 /* Show the saved choices. */
 - (void)refresh;
-/* Leave tiling for the NeXT style, which always stacks. */
-- (void)stackInNeXTStyle;
 
 @end

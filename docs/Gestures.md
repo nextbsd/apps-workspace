@@ -35,10 +35,6 @@ Settings live in `org.nextbsd.WindowServer` (see WindowServer's README, "Touchpa
 | Pinch thumb and three fingers | | Open Applications in Workspace | Planned: #18 |
 | Double-click a minimized window's tile | | Restore the window | Planned: [#12](https://github.com/nextbsd/apps-windowserver/issues/12) |
 
-## Tiling mode
-
-When tiling is on ([apps-windowserver#20](https://github.com/nextbsd/apps-windowserver/issues/20)), windows are laid out automatically, and the keyboard moves between them: Command+Option+arrows move focus, with shortcuts to swap windows, resize splits and float a window. These are configurable.
-
 ## Notes
 
 - **Start key:** on PC keyboards the Start (Windows) key is also the Command key. Tapping it on its own opens the window overview; holding it with another key is a Command shortcut as usual. In the overview, click a window or pick one with the arrow keys and Return; Escape, a click on empty space or another Start tap close it. `StartKeyShowsOverview` turns the Start tap off, and `ReduceMotion` the animations.

@@ -21,8 +21,9 @@
  * With the Mac menu bar the Dock is never at the top: Desktop
  * preferences leaves Top out of the Dock position, shows a saved top as
  * the bottom and tells the Dock "bottom", and keeps the saved top for
- * the NeXT and in-window styles. Every menu style, window mode (each
- * with its own position) and saved position, and changes between them.
+ * the NeXT and in-window styles. Every menu style and saved position,
+ * and changes between them; windows always stack, and a tiling mode
+ * saved before Preferences dropped it goes back to stacking at login.
  * Isolated defaults; nothing is posted to the running session.
  */
 
@@ -190,7 +191,9 @@ main (void)
   NSString *root = [NSTemporaryDirectory ()
       stringByAppendingPathComponent:[[NSProcessInfo processInfo] globallyUniqueString]];
   NSArray *styles = [NSArray arrayWithObjects:@"nextstep", @"inwindow", @"macmenubar", nil];
-  NSArray *modes = [NSArray arrayWithObjects:@"stacking", @"tiling", nil];
+  /* Only stacking is in effect now; the saved tiling entry must stay
+     untouched beside it. */
+  NSArray *modes = [NSArray arrayWithObjects:@"stacking", nil];
   NSArray *positions = [NSArray arrayWithObjects:@"left", @"bottom", @"right", @"top", nil];
   NSEnumerator *se, *me, *pe;
   NSString *s, *m, *p;
@@ -240,10 +243,8 @@ main (void)
   FVDesktopSettings *settings = [[FVDesktopSettings alloc] init];
   FakePopUp *dockPopUp = [[FakePopUp alloc] initWithTag:2];
   FakePopUp *menuPopUp = [[FakePopUp alloc] initWithTag:3];
-  FakePopUp *modePopUp = [[FakePopUp alloc] initWithTag:4];
   object_setIvar (settings, class_getInstanceVariable ([FVDesktopSettings class], "dockPopUp"), dockPopUp);
   object_setIvar (settings, class_getInstanceVariable ([FVDesktopSettings class], "menuPopUp"), menuPopUp);
-  object_setIvar (settings, class_getInstanceVariable ([FVDesktopSettings class], "modePopUp"), modePopUp);
 
   se = [styles objectEnumerator];
   while ((s = [se nextObject]) != nil)
@@ -322,51 +323,27 @@ main (void)
         }
     }
 
-  /* Window mode changes: each mode's style and position. */
-  se = [styles objectEnumerator];
-  while ((s = [se nextObject]) != nil)
-    {
-      pe = [positions objectEnumerator];
-      while ((p = [pe nextObject]) != nil)
-        {
-          NSEnumerator *te = [styles objectEnumerator];
-          NSString *t;
-          while ((t = [te nextObject]) != nil)
-            {
-              save (@"stacking", s, p, t, @"top");
-              [testDefaults removePersistentDomainForName:@"Dock"];
-              [settings refresh];
-              [posts removeAllObjects];
-              choose (settings, modePopUp, @"tiling");
-              CHECK ([[FVDesktopSettings effectiveValueForKey:@"NBDockPosition"]
-                         isEqual:expected (@"top", t)],
-                     @"to tiling (%@ top): %@", t,
-                     [FVDesktopSettings effectiveValueForKey:@"NBDockPosition"]);
-              if (![expected (p, s) isEqual:expected (@"top", t)])
-                CHECK ([lastPosted (@"NBDockPosition") isEqual:expected (@"top", t)],
-                       @"stacking %@ %@ -> tiling %@ top: posted %@", s, p, t,
-                       lastPosted (@"NBDockPosition"));
-              if (![p isEqual:@"top"])
-                CHECK ([[[testDefaults persistentDomainForName:@"Dock"]
-                           objectForKey:@"DockPlacement"] intValue] == 4,
-                       @"to tiling %@: DockPlacement %@ not the saved top", t,
-                       [[testDefaults persistentDomainForName:@"Dock"]
-                           objectForKey:@"DockPlacement"]);
-              CHECK ([[[dockPopUp selectedItem] representedObject]
-                         isEqual:expected (@"top", t)],
-                     @"to tiling %@: pop-up %@", t, [[dockPopUp selectedItem] representedObject]);
-              [posts removeAllObjects];
-              choose (settings, modePopUp, @"stacking");
-              CHECK ([[FVDesktopSettings effectiveValueForKey:@"NBDockPosition"]
-                         isEqual:expected (p, s)],
-                     @"back to stacking (%@ %@): %@", s, p,
-                     [FVDesktopSettings effectiveValueForKey:@"NBDockPosition"]);
-              CHECK ([saved (@"stacking", @"NBDockPosition") isEqual:p] &&
-                         [saved (@"tiling", @"NBDockPosition") isEqual:@"top"],
-                     @"mode round trip %@ %@ / %@: saved changed", s, p, t);
-            }
-        }
-    }
+  /* A tiling mode saved before Preferences dropped it: the stacking
+     settings are the ones in effect, and login puts NBWindowMode back to
+     stacking (for the Dock and the theme), leaving the tiling entry. */
+  save (@"tiling", @"macmenubar", @"left", @"inwindow", @"top");
+  CHECK ([[FVDesktopSettings windowMode] isEqual:@"stacking"],
+         @"saved tiling: window mode %@", [FVDesktopSettings windowMode]);
+  CHECK ([[FVDesktopSettings effectiveValueForKey:@"NBMenuStyle"] isEqual:@"macmenubar"] &&
+             [[FVDesktopSettings effectiveValueForKey:@"NBDockPosition"] isEqual:@"left"],
+         @"saved tiling: effective %@ %@ not stacking's",
+         [FVDesktopSettings effectiveValueForKey:@"NBMenuStyle"],
+         [FVDesktopSettings effectiveValueForKey:@"NBDockPosition"]);
+  [posts removeAllObjects];
+  [FVDesktopSettings syncWindowServer];
+  CHECK ([[[testDefaults persistentDomainForName:NSGlobalDomain] objectForKey:@"NBWindowMode"]
+             isEqual:@"stacking"],
+         @"login: NBWindowMode %@",
+         [[testDefaults persistentDomainForName:NSGlobalDomain] objectForKey:@"NBWindowMode"]);
+  CHECK ([lastPosted (@"NBWindowMode") isEqual:@"stacking"], @"login: posted %@",
+         lastPosted (@"NBWindowMode"));
+  CHECK ([saved (@"tiling", @"NBMenuStyle") isEqual:@"inwindow"],
+         @"login: tiling entry changed");
 
   /* Choosing a position with the Mac menu bar saves it for the mode. */
   pe = [positions objectEnumerator];
@@ -374,13 +351,14 @@ main (void)
     {
       if ([p isEqual:@"top"])
         continue;
-      save (@"tiling", @"nextstep", @"top", @"macmenubar", @"top");
+      save (@"stacking", @"macmenubar", @"top", @"nextstep", @"top");
       [settings refresh];
       [posts removeAllObjects];
       choose (settings, dockPopUp, p);
-      CHECK ([saved (@"tiling", @"NBDockPosition") isEqual:p] &&
-                 [saved (@"stacking", @"NBDockPosition") isEqual:@"top"],
-             @"choose %@ in Mac tiling: saved %@", p, saved (@"tiling", @"NBDockPosition"));
+      CHECK ([saved (@"stacking", @"NBDockPosition") isEqual:p] &&
+                 [saved (@"tiling", @"NBDockPosition") isEqual:@"top"],
+             @"choose %@ with the Mac menu bar: saved %@", p,
+             saved (@"stacking", @"NBDockPosition"));
       CHECK ([lastPosted (@"NBDockPosition") isEqual:p], @"choose %@: posted %@", p,
              lastPosted (@"NBDockPosition"));
     }
