@@ -1,0 +1,5 @@
+<ul>
+  <li>Type in the search field at the top right. With <b>This Folder</b> chosen beside it, it narrows the list to names that contain what you typed. With <b>Subfolders</b>, it searches every folder inside this one and lists what it finds with its location.</li>
+  <li><b>View → Search</b> <kbd>⌘F</kbd> puts the cursor in the field. Press <kbd>Esc</kbd> or clear the field to see the folder again.</li>
+</ul>
+<note>Search matches names only, not what is inside files.</note>

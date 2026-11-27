@@ -1,0 +1,24 @@
+<p>Workspace is the NextBSD file manager. Each File Viewer window shows one folder: the Locations list at the left, the folder's path above the files, and a status line at the bottom.</p>
+<aside>
+  <h2>From the keyboard</h2>
+  <table>
+    <tr><td><kbd>⌘N</kbd></td><td>New window</td></tr>
+    <tr><td><kbd>⌘[</kbd> <kbd>⌘]</kbd></td><td>Back, Forward</td></tr>
+    <tr><td><kbd>⌘U</kbd></td><td>Parent folder</td></tr>
+    <tr><td><kbd>⌘G</kbd></td><td>Go to a folder by its path</td></tr>
+    <tr><td><kbd>⌘F</kbd></td><td>Search</td></tr>
+    <tr><td><kbd>⌘W</kbd></td><td>Close the window</td></tr>
+  </table>
+  <tip>Menu shortcuts use the Command key. On a PC keyboard that is the Start (Windows) key.</tip>
+  <related>
+    <ref id="moving-around">Moving around</ref>
+    <ref id="locations">The Locations list</ref>
+    <ref book="NextBSD" id="file-viewer">File Viewer in NextBSD Help</ref>
+  </related>
+</aside>
+<legendfig src="file-viewer.png" width="440">
+  <legend x="110" y="84">The <b>Locations list</b>: your home folder and its folders, Favorites, the domains and your disks.</legend>
+  <legend x="600" y="88">The <b>path</b> of the folder. Click a part of it to go there.</legend>
+  <legend x="835" y="50">The <b>search field</b> finds names in this folder, or in every folder inside it.</legend>
+  <legend x="300" y="645">The <b>status line</b> counts the items and what's selected.</legend>
+</legendfig>

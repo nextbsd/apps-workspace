@@ -1,0 +1,17 @@
+<ul>
+  <li>Dragging copies. <b>Edit → Copy</b> and <b>Paste</b> copy too. To move, use <b>Edit → Cut</b> and then <b>Paste</b>, or <b>Edit → Move To…</b> and pick the folder.</li>
+  <li><b>Duplicate</b> <kbd>⌘D</kbd> makes a copy next to the original, called “notes copy.txt”, then “notes copy 2.txt”.</li>
+  <li>A copy or move that takes more than a moment shows the Processes window: what is happening, a progress bar, the item being handled, and a Stop button. <b>Edit → Cancel Work</b> <kbd>⌘.</kbd> stops it from the keyboard. Stopping keeps the items already finished, and leaves the item in progress as it was.</li>
+</ul>
+<h2>When the name is taken</h2>
+<p>When an item with the same name is already there, Workspace shows both, with their sizes and dates, and asks what to do.</p>
+<table>
+  <tr><td><b>Keep Both</b></td><td>The new one gets a number.</td></tr>
+  <tr><td><b>Skip</b></td><td>The new one is left out.</td></tr>
+  <tr><td><b>Replace</b></td><td>The new one takes its place; the old one is kept beside it.</td></tr>
+  <tr><td><b>Stop</b></td><td>Ends the copy or move.</td></tr>
+</table>
+<tip>Check <b>Apply to all</b> to answer once for the rest.</tip>
+<related>
+  <ref id="safety">How Workspace keeps your files safe</ref>
+</related>

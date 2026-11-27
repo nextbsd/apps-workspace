@@ -12,11 +12,14 @@ application choices and file opening continue through NSWorkspace associations.
 
 ## Help
 
-Help → Workspace Help opens a help window with `Resources/WorkspaceHelp.rtf`,
-which is installed in the app bundle. It covers the views, the Locations list,
-copying and moving, Trash and Delete Permanently, Undo, Open With, search, the
-Inspector, what the safety checks mean, and the touchpad gestures that work in
-File Viewer. Edit the RTF to change it.
+Help → Workspace Help opens Workspace's book, `Resources/Workspace.help`, in
+Help (nextbsd/apps-help), through NSApplication's `-showHelp:`; the NextBSD
+theme puts it, the help search and NextBSD Help at the top of the Help menu.
+The book covers File Viewer windows, moving around, the views, the Locations
+list, opening and renaming, copying and moving, the Trash, Undo, search, Get
+Info and what the safety checks mean. Its pages are XLP files (the format is
+in apps-help's README); `file-viewer-dark.png` and `file-viewer-light.png`
+are the screenshot for each appearance.
 
 ## Preferences
 

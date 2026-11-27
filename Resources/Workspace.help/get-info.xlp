@@ -1,0 +1,5 @@
+<ul>
+  <li><b>File → Get Info</b> <kbd>⌘I</kbd> opens the Inspector, which follows whatever you select. It shows the icon, name, kind, size, location and dates. Type a new name and press <kbd>Return</kbd> to rename.</li>
+  <li>Its owner, group and Read, Write and Execute boxes change who may use the item; click <b>Apply</b> to make the change. Only an item's owner may change its permissions, and only an administrator may change its owner.</li>
+  <li>Select several items for a summary of them all.</li>
+</ul>

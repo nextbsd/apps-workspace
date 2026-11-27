@@ -1,0 +1,5 @@
+<ul>
+  <li><b>Edit → Move to Trash</b> moves items to the Trash in your home folder. Open the Trash in the Locations list to get them back by moving them out.</li>
+  <li><b>Delete Permanently</b> removes items at once, after asking. It can't be undone.</li>
+  <li><b>Edit → Undo</b> <kbd>⌘Z</kbd> reverses the last rename, move within the same disk, or new empty folder, as long as nothing has changed since.</li>
+</ul>
