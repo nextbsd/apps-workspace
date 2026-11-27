@@ -17,5 +17,6 @@
 </chapter>
 <chapter id="searching" name="Searching for files" src="searching.xlp" keywords="find search"/>
 <chapter id="get-info" name="Get Info" src="get-info.xlp" keywords="inspector permissions owner"/>
+<chapter id="desktop-preferences" name="Desktop preferences" src="desktop.xlp" keywords="preferences style dock menu appearance dark light desktop icons"/>
 <chapter id="safety" name="How Workspace keeps your files safe" src="safety.xlp" keywords="replace copy safe"/>
 </document>
