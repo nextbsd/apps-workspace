@@ -26,6 +26,42 @@
 #import "FVBackgroundSettings.h"
 #import "FVDockSettings.h"
 
+/* Preferences' tabs are laid out at full height, from the top and from
+   the bottom. FVFitPreferencesTab keeps each control where it was laid
+   out when the tab gets shorter: one near the bottom (a note) stays at
+   the bottom, one that spans the tab (Background's list) stretches, and
+   the rest stay at the top. It returns the height the tab needs. */
+static const CGFloat FVTabBottomBand = 60;
+static const CGFloat FVTabListMinHeight = 260;
+
+static CGFloat
+FVFitPreferencesTab (NSView *tab)
+{
+  CGFloat full = NSHeight ([tab frame]);
+  CGFloat topExtent = 0, bottomExtent = 0, spanning = 0;
+  NSEnumerator *e = [[tab subviews] objectEnumerator];
+  NSView *v;
+
+  while ((v = [e nextObject]) != nil)
+    {
+      NSRect r = [v frame];
+      if (NSMinY (r) < FVTabBottomBand && NSMaxY (r) > full - FVTabBottomBand)
+        {
+          [v setAutoresizingMask:NSViewHeightSizable];
+          spanning = MAX (spanning, NSMinY (r) + FVTabListMinHeight + (full - NSMaxY (r)));
+        }
+      else if (NSMinY (r) < FVTabBottomBand)
+        bottomExtent = MAX (bottomExtent, NSMaxY (r));
+      else
+        {
+          [v setAutoresizingMask:NSViewMinYMargin];
+          topExtent = MAX (topExtent, full - NSMinY (r));
+        }
+    }
+  [tab setAutoresizesSubviews:YES];
+  return ceil (MAX (topExtent + bottomExtent + 12, spanning));
+}
+
 /* The gap between a window and the menu it moves clear of. */
 static const CGFloat FVMenuGap = 8;
 
@@ -461,6 +497,12 @@ FVMigrateFileViewerDefaults (void)
   RELEASE (controller);
 }
 
+/* The tab shown gets the tab view's whole content area. */
+- (void)tabView:(NSTabView *)tabView didSelectTabViewItem:(NSTabViewItem *)item
+{
+  [[item view] setFrame:[tabView contentRect]];
+}
+
 - (void)newWindow:(id)sender
 {
   [self openPath:NSHomeDirectory ()];
@@ -476,16 +518,13 @@ FVMigrateFileViewerDefaults (void)
                       backing:NSBackingStoreBuffered defer:NO];
       [preferencesPanel setTitle:@"Preferences"];
       [preferencesPanel setReleasedWhenClosed:NO];
-      /* Centred on the screen, then out from under the menu on a small
-         one; the panel keeps where the user moves it after that. */
-      [preferencesPanel center];
-      FVPlaceClearOfMenu (preferencesPanel);
       /* General: the file viewer's settings. Desktop: NextBSD's desktop
          settings, whose defaults come from the theme. Dock: the Dock's
          size, behavior and status extras. Background: the desktop
          background's module. */
       NSTabView *tabs = AUTORELEASE ([[NSTabView alloc]
           initWithFrame:NSMakeRect (10, 10, 520, 704)]);
+      [tabs setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
       [[preferencesPanel contentView] addSubview:tabs];
       NSRect page = [tabs contentRect];
       page.origin = NSZeroPoint;
@@ -533,6 +572,27 @@ FVMigrateFileViewerDefaults (void)
       [item setLabel:@"Background"];
       [item setView:[backgroundSettings view]];
       [tabs addTabViewItem:item];
+
+      /* One size for every tab, so switching doesn't jump: the tallest
+         tab's height. Then the middle of the screen's usable area (clear
+         of the Dock), out from under the menu on a small screen. The
+         panel keeps where the user moves it after that. */
+      CGFloat tallest = 0;
+      NSEnumerator *e = [[tabs tabViewItems] objectEnumerator];
+      while ((item = [e nextObject]) != nil)
+        tallest = MAX (tallest, FVFitPreferencesTab ([item view]));
+      [tabs setDelegate:self];
+      NSRect content = [[preferencesPanel contentView] frame];
+      content.size.height += tallest - NSHeight ([tabs contentRect]);
+      NSRect frame = [preferencesPanel frameRectForContentRect:content];
+      NSScreen *screen = [preferencesPanel screen] ? [preferencesPanel screen]
+                                                   : [NSScreen mainScreen];
+      NSRect area = [screen visibleFrame];
+      frame.origin.x = floor (NSMidX (area) - NSWidth (frame) / 2);
+      frame.origin.y = floor (NSMidY (area) - NSHeight (frame) / 2);
+      [preferencesPanel setFrame:frame display:NO];
+      [[[tabs selectedTabViewItem] view] setFrame:[tabs contentRect]];
+      FVPlaceClearOfMenu (preferencesPanel);
     }
   [thumbnailCheckbox setState:[FVThumbnailOperation enabled] ? NSOnState : NSOffState];
   [self hiddenFilesPreferencesChanged:nil];
