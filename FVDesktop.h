@@ -25,11 +25,10 @@
  * windows let the pointer through), takes the clicks on the desktop.
  * Clicking it brings Workspace forward.
  *
- * With desktop icons on (FVDesktopSettings +desktopIconsShown) the main
- * display's window shows the startup disk as "NextBSD", the disks
- * connected in /Volumes, and what's in ~/Desktop, with right-click menus
- * for them and for the desktop. Otherwise right-clicking it shows
- * Workspace's menu.
+ * The main display's window shows what's in ~/Desktop and, with disks on
+ * (FVDesktopSettings +desktopShowsDisks), the startup disk as "NextBSD"
+ * and the disks connected in /Volumes, with right-click menus for them
+ * and for the desktop.
  */
 @class FVDesktopView;
 @interface FVDesktop : NSObject
