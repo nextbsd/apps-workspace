@@ -109,6 +109,7 @@ FVViewerTextColor (void)
 
 - (NSInteger)runDialog:(id<FVModalDialog>)dialog;
 - (void)updateActivity;
+- (BOOL)handleRewindKey:(NSEvent *)event;
 
 @end
 
@@ -1070,6 +1071,10 @@ FVClickStayedPut (NSEvent *down)
   NSString *text = [event charactersIgnoringModifiers];
   [NSObject cancelPreviousPerformRequestsWithTarget:self];
   unichar key = [text length] ? [text characterAtIndex:0] : 0;
+  /* While rewinding, Up and Down go through the snapshots and Escape
+     back to now. */
+  if ([(FVWindow *)[self target] handleRewindKey:event])
+    return;
   /* Return opens, as a double click does, and so does Command-Down, as
      on a Mac; F2 renames, as on Windows. */
   if (key == '\r' || key == NSEnterCharacter
@@ -1461,6 +1466,14 @@ FVClickStayedPut (NSEvent *down)
       [searchScope setTarget:self];
       [searchScope setAction:@selector (filterChanged:)];
       [bar addSubview:searchScope];
+      /* In the search scope's place while rewinding. */
+      changesSwitch = [[FVRewindSwitch alloc]
+          initWithFrame:NSMakeRect (contentSize.width - 16 - 150, 2, 150, 26)];
+      [changesSwitch setAutoresizingMask:NSViewMinXMargin];
+      [changesSwitch setTarget:self];
+      [changesSwitch setAction:@selector (toggleOnlyChanges:)];
+      [changesSwitch setHidden:YES];
+      [bar addSubview:changesSwitch];
       modeBeforeSearch = -1;
       breadcrumbs = [[NSPopUpButton alloc]
           initWithFrame:NSMakeRect (180, contentSize.height - 78, contentSize.width - 190, 30)
@@ -1526,6 +1539,12 @@ FVClickStayedPut (NSEvent *down)
       [[locationColumn dataCell] setSelectable:NO];
       [[locationColumn dataCell] setBordered:NO];
       [[locationColumn dataCell] setLineBreakMode:NSLineBreakByTruncatingHead];
+      /* Shown only while rewinding: how each item differs from now. */
+      changeColumn = [[NSTableColumn alloc] initWithIdentifier:@"change"];
+      [[changeColumn headerCell] setStringValue:@""];
+      [changeColumn setWidth:120];
+      [changeColumn setEditable:NO];
+      [changeColumn setDataCell:AUTORELEASE ([[FVRewindChangeCell alloc] initTextCell:@""])];
       [scroll setDocumentView:table];
       [host addSubview:scroll];
       sideScroll = [[NSScrollView alloc]
@@ -1560,6 +1579,9 @@ FVClickStayedPut (NSEvent *down)
       [status setAutoresizingMask:NSViewWidthSizable];
       [[status cell] setLineBreakMode:NSLineBreakByTruncatingTail];
       [content addSubview:status];
+      spinner = [[FVStatusSpinner alloc] initWithFrame:NSMakeRect (10, 9, 16, 16)];
+      [spinner setHidden:YES];
+      [content addSubview:spinner];
       activityStatus = RETAIN (FVLabel (NSMakeRect (contentSize.width - 240, 5, 230, 24), @""));
       [activityStatus setAlignment:NSRightTextAlignment];
       [activityStatus setAutoresizingMask:NSViewMinXMargin];
@@ -1862,6 +1884,100 @@ FVClickStayedPut (NSEvent *down)
   [rewind toggleRewind:sender];
 }
 
+- (BOOL)handleRewindKey:(NSEvent *)event
+{
+  return [rewind handleKey:event];
+}
+
+/* Rewind shows the list, with a column for what changed since and Show
+   only changes in the search scope's place; the view comes back after. */
+- (void)rewindDidChange
+{
+  BOOL on = [rewind isRewinding];
+  [(FVToolButton *)rewindButton setOn:on];
+  if (on)
+    {
+      modeBeforeRewind = mode;
+      if (mode != 0)
+        [self listMode:nil];
+      if ([table columnWithIdentifier:@"change"] < 0)
+        {
+          [table addTableColumn:changeColumn];
+          [table moveColumn:[table numberOfColumns] - 1 toColumn:1];
+        }
+      [changesSwitch setOn:[rewind showsOnlyChanges]];
+    }
+  else
+    {
+      if ([table columnWithIdentifier:@"change"] >= 0)
+        {
+          [table removeTableColumn:changeColumn];
+          /* Modified last again, as -navigate: keeps it. */
+          [table moveColumn:[table columnWithIdentifier:@"date"]
+                   toColumn:[table numberOfColumns] - 1];
+        }
+      if (modeBeforeRewind == 1)
+        [self columnMode:nil];
+      else if (modeBeforeRewind == 2)
+        [self iconMode:nil];
+      modeBeforeRewind = 0;
+    }
+  [self fitToWidth];
+}
+
+- (void)toggleOnlyChanges:(id)sender
+{
+  [rewind setShowsOnlyChanges:[changesSwitch isOn]];
+}
+
+/* The status line: a note if there is one, Rewind's line while
+   rewinding, else what the list says. */
+- (void)showListStatus:(NSString *)text
+{
+  if (statusNote)
+    text = statusNote;
+  else if ([rewind isRewinding])
+    text = [rewind statusLine];
+  [status setStringValue:text];
+}
+
+- (void)showNote:(NSString *)message busy:(BOOL)busy
+{
+  ASSIGN (statusNote, message);
+  [spinner setHidden:message == nil];
+  [spinner setBusy:message != nil && busy];
+  [self fitToWidth];
+  if (message)
+    [status setStringValue:message];
+}
+
+- (void)clearNote
+{
+  if (statusNote == nil)
+    return;
+  [self showNote:nil busy:NO];
+  [self selectionChanged];
+}
+
+- (void)selectPaths:(NSArray *)paths
+{
+  ASSIGN (savedSelection, paths);
+  if (loading)
+    return;
+  NSMutableIndexSet *indices = [NSMutableIndexSet indexSet];
+  NSUInteger i;
+  for (i = 0; i < [items count]; i++)
+    if ([paths containsObject:[[items objectAtIndex:i] path]])
+      [indices addIndex:i];
+  [table selectRowIndexes:indices byExtendingSelection:NO];
+  [icons setSelection:indices];
+}
+
+- (BOOL)hasOperation
+{
+  return operation != nil;
+}
+
 - (void)selectFile:(NSString *)value
 {
   NSString *folder = [value stringByDeletingLastPathComponent];
@@ -1926,6 +2042,8 @@ FVClickStayedPut (NSEvent *down)
   RELEASE (listing);
   generation++;
   pendingBrowserLoads = 0;
+  if ([rewind isRewinding])
+    [rewind listingWillStart];
   [items removeAllObjects];
   [browserRows removeAllObjects];
   [errors removeAllObjects];
@@ -1947,7 +2065,11 @@ FVClickStayedPut (NSEvent *down)
 {
   if (closed || [[result objectForKey:@"generation"] unsignedIntegerValue] != generation)
     return;
-  [items addObjectsFromArray:[result objectForKey:@"items"]];
+  NSArray *found = [result objectForKey:@"items"];
+  /* Rewind marks what changed since, and may show only that. */
+  if ([rewind isRewinding])
+    found = [rewind filterItems:found];
+  [items addObjectsFromArray:found];
   [errors addObjectsFromArray:[result objectForKey:@"errors"]];
   loading = ![[result objectForKey:@"done"] boolValue];
   [self updateActivity];
@@ -1977,8 +2099,8 @@ FVClickStayedPut (NSEvent *down)
       [self checkDirectory:nil];
       [self showRevealedItem];
     }
-  [status
-      setStringValue:[NSString
+  [self
+      showListStatus:[NSString
                          stringWithFormat:@"%lu items%@%@", (unsigned long)[items count],
                                           loading ? @" • loading" : @"",
                                           [errors count]
@@ -1997,6 +2119,11 @@ FVClickStayedPut (NSEvent *down)
                           row:(NSInteger)row
 {
   FVItem *item = [items objectAtIndex:row];
+  if ([[column identifier] isEqual:@"change"])
+    {
+      NSString *change = [rewind changeAtPath:[item path]];
+      return change ? change : @"";
+    }
   if ([[column identifier] isEqual:@"location"])
     {
       /* Relative to the search root, which is named first: "t/dest/Project". */
@@ -2525,13 +2652,20 @@ FVClickStayedPut (NSEvent *down)
   BOOL showRewind = showModes && [FVRewind appliesToPath:path];
   [snapshotsButton setHidden:!showRewind];
   [rewindButton setHidden:!showRewind];
-  [searchScope setHidden:!showScope];
+  /* While rewinding, Show only changes stands where the scope does. */
+  BOOL rewinding = [rewind isRewinding];
+  [searchScope setHidden:!showScope || rewinding];
+  [changesSwitch setHidden:!rewinding];
   r = [searchScope frame];
   r.origin.x = barWidth - 128;
   [searchScope setFrame:r];
+  r = [changesSwitch frame];
+  r.origin.x = barWidth - NSWidth (r);
+  [changesSwitch setFrame:r];
   r = [filter frame];
   r.origin.x = showRewind ? 420 : showModes ? 332 : 204;
-  r.size.width = MAX ((showScope ? barWidth - 136 : barWidth) - NSMinX (r), 60);
+  r.size.width = MAX ((rewinding ? barWidth - NSWidth ([changesSwitch frame]) - 8
+                       : showScope ? barWidth - 136 : barWidth) - NSMinX (r), 60);
   [filter setFrame:r];
 
   [sideScroll setHidden:!showSidebar];
@@ -2550,8 +2684,9 @@ FVClickStayedPut (NSEvent *down)
   r.size.width = activityWidth;
   [activityStatus setFrame:r];
   r = [status frame];
-  r.origin.x = 10;
-  r.size.width = MAX (width - 30 - activityWidth, 1);
+  /* Room for the spinner beside a note. */
+  r.origin.x = statusNote ? 30 : 10;
+  r.size.width = MAX (width - 20 - NSMinX (r) - activityWidth, 1);
   [status setFrame:r];
   [[[self window] contentView] setNeedsDisplay:YES];
 }
@@ -2570,6 +2705,9 @@ FVClickStayedPut (NSEvent *down)
 - (void)windowWillClose:(NSNotification *)note
 {
   [rewind viewerWillClose];
+  [spinner setBusy:NO];
+  [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector (clearNote)
+                                             object:nil];
   [self endEditingName:NO];
   closed = YES;
   [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -2596,6 +2734,8 @@ FVClickStayedPut (NSEvent *down)
 
 - (void)tableView:(NSTableView *)sender didClickTableColumn:(NSTableColumn *)column
 {
+  if (column == changeColumn)
+    return;
   if (sender != table)
     return;
   if ([sortKey isEqual:[column identifier]])
@@ -2630,9 +2770,10 @@ FVClickStayedPut (NSEvent *down)
 - (void)selectionChanged
 {
   [[FVInspector sharedInspector] viewerSelectionChanged:self];
+  [rewind viewerSelectionChanged];
   if (operation || [errors count])
     return;
-  [status setStringValue:[NSString stringWithFormat:@"%lu items • %lu selected%@%@",
+  [self showListStatus:[NSString stringWithFormat:@"%lu items • %lu selected%@%@",
                                                     (unsigned long)[items count],
                                                     (unsigned long)[[self selectedPaths] count],
                                                     spaceDescription ? spaceDescription : @"",
@@ -3404,6 +3545,7 @@ FVThumbnailKey (NSString *file)
                                           target:self];
   NSDictionary *activities = [NSDictionary dictionaryWithObjectsAndKeys:
       @"Copying…", @"copy", @"Moving…", @"move", @"Deleting…", @"delete",
+      @"Restoring…", @"restore",
       @"Duplicating…", @"duplicate",
       @"Moving to Trash…", @"trash", @"Renaming…", @"rename",
       @"Creating folder…", @"mkdir", nil];
@@ -3495,6 +3637,8 @@ FVThumbnailKey (NSString *file)
     return;
   [self rebuildPlaces];
   [self refresh:nil];
+  if ([[result objectForKey:@"kind"] isEqual:@"restore"])
+    [rewind restoreFinished:result];
 }
 
 /* Success is silent. Failures and notes the user must act on get one alert. */
@@ -3504,10 +3648,11 @@ FVThumbnailKey (NSString *file)
     return;
   NSDictionary *verbs = [NSDictionary dictionaryWithObjectsAndKeys:
       @"copied", @"copy", @"moved", @"move", @"duplicated", @"duplicate",
+      @"restored", @"restore",
       @"moved to the Trash", @"trash", @"deleted", @"delete", @"renamed", @"rename",
       @"created", @"mkdir", @"put back", @"undo", nil];
   NSDictionary *titles = [NSDictionary dictionaryWithObjectsAndKeys:
-      @"Copy", @"copy", @"Move", @"move", @"Duplicate", @"duplicate",
+      @"Copy", @"copy", @"Move", @"move", @"Duplicate", @"duplicate", @"Restore", @"restore",
       @"Move to Trash", @"trash", @"Delete Permanently", @"delete", @"Rename", @"rename",
       @"New Folder", @"mkdir", @"Undo", @"undo", nil];
   NSString *verb = [verbs objectForKey:kind] ? [verbs objectForKey:kind] : @"handled";
@@ -3553,6 +3698,12 @@ FVThumbnailKey (NSString *file)
   if (closed)
     {
       [request setObject:@"cancel" forKey:@"choice"];
+      return;
+    }
+  /* Rewind asks in its own words: Skip, Replace or Keep Both. */
+  if ([[request objectForKey:@"kind"] isEqual:@"restore"])
+    {
+      [rewind resolveConflict:request];
       return;
     }
   FVConflictPanel *dialog = AUTORELEASE ([[FVConflictPanel alloc]
@@ -4117,6 +4268,11 @@ FVThumbnailKey (NSString *file)
            [[[NSPasteboard generalPasteboard] types] containsObject:NSFilenamesPboardType];
   if (action == @selector (cancel:))
     return loading || operation != nil;
+  if (action == @selector (rewind:))
+    {
+      [item setState:[rewind isRewinding] ? NSOnState : NSOffState];
+      return [rewind isRewinding] || [FVRewind appliesToPath:path];
+    }
   return YES;
 }
 
@@ -4152,6 +4308,10 @@ FVThumbnailKey (NSString *file)
   RELEASE (sideScroll);
   RELEASE (modeButtons);
   RELEASE (rewind);
+  RELEASE (changeColumn);
+  RELEASE (changesSwitch);
+  RELEASE (spinner);
+  RELEASE (statusNote);
   RELEASE (browser);
   RELEASE (icons);
   RELEASE (browserRows);

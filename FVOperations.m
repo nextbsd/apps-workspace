@@ -174,6 +174,34 @@ FVCopyName (NSString *folder, NSString *name)
   return dest;
 }
 
+/* Rewind's Keep Both names: "notes (restored).txt", then
+   "notes (restored 2).txt". */
+static NSString *
+FVRestoredName (NSString *folder, NSString *name)
+{
+  NSString *extension = [name pathExtension];
+  NSString *base = [name stringByDeletingPathExtension];
+  if (![extension length] || ![base length] || [extension rangeOfString:@" "].location != NSNotFound)
+    {
+      extension = @"";
+      base = name;
+    }
+  NSUInteger n = 1;
+  NSString *dest;
+  do
+    {
+      NSString *restored = n == 1 ? [base stringByAppendingString:@" (restored)"]
+                                  : [base stringByAppendingFormat:@" (restored %lu)",
+                                                                  (unsigned long)n];
+      if ([extension length])
+        restored = [restored stringByAppendingPathExtension:extension];
+      dest = [folder stringByAppendingPathComponent:restored];
+      n++;
+    }
+  while (FVExists (dest));
+  return dest;
+}
+
 /* A failed item: the path it concerns and a reason without that path. */
 static NSDictionary *
 FVFailure (NSString *path, NSString *reason)
@@ -893,13 +921,16 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
 {
   CREATE_AUTORELEASE_POOL (pool);
   NSMutableArray *completed = [NSMutableArray array], *failed = [NSMutableArray array],
-                 *skipped = [NSMutableArray array], *undo = [NSMutableArray array];
+                 *skipped = [NSMutableArray array], *undo = [NSMutableArray array],
+                 *placed = [NSMutableArray array];
   NSUInteger i;
   /* Count the bytes that will be copied, so the progress bar follows them.
      A move within one filesystem is a rename and counts by items. */
   unsigned long long *sizes = calloc ([sources count] + 1, sizeof (unsigned long long));
   unsigned long long *counts = calloc ([sources count] + 1, sizeof (unsigned long long));
-  BOOL copies = [kind isEqual:@"copy"] || [kind isEqual:@"duplicate"];
+  /* A restore (Rewind) is a copy out of a snapshot. */
+  BOOL copies = [kind isEqual:@"copy"] || [kind isEqual:@"duplicate"]
+                || [kind isEqual:@"restore"];
   if (copies || [kind isEqual:@"move"])
     {
       struct stat folder, item;
@@ -1012,7 +1043,9 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
                   [skipped addObject:source];
                   continue;
                 }
-              if ([choice isEqual:@"keep"])
+              if ([choice isEqual:@"keep"] && [kind isEqual:@"restore"])
+                dest = FVRestoredName (destination, [source lastPathComponent]);
+              else if ([choice isEqual:@"keep"])
                 {
                   NSUInteger n = 2;
                   NSString *original = dest;
@@ -1021,6 +1054,19 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
                       dest = [original stringByAppendingFormat:@" %lu", (unsigned long)n++];
                     }
                   while (FVExists (dest));
+                }
+              else if ([choice isEqual:@"replace"] && [kind isEqual:@"restore"])
+                {
+                  /* Rewind's Replace: the item there now goes to the Trash,
+                     where it can be fetched back, rather than staying beside
+                     the restored one. */
+                  if (![[self class] trashPath:dest error:&error])
+                    {
+                      [failed addObject:FVFailure (source, @"The item there now couldn’t be "
+                                                           @"moved to the Trash, so nothing "
+                                                           @"was replaced.")];
+                      continue;
+                    }
                 }
               else if ([choice isEqual:@"replace"])
                 {
@@ -1054,6 +1100,8 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
             FVRename (backup, dest);
           if (ok && !backup && ([kind isEqual:@"move"] || [kind isEqual:@"rename"]))
             undoDestination = dest;
+          if (ok)
+            [placed addObject:dest];
         }
       if (ok)
         {
@@ -1083,7 +1131,7 @@ FVRemoveVerified (NSString *path, NSDictionary *manifest, NSString *relative, FV
     }
   NSDictionary *result = [NSDictionary
       dictionaryWithObjectsAndKeys:kind, @"kind", undo, @"undo", completed, @"completed",
-                                   failed, @"failed",
+                                   failed, @"failed", placed, @"placed",
                                    skipped, @"skipped", notes, @"notes",
                                    [NSNumber numberWithBool:[self cancelled]], @"cancelled", nil];
   free (sizes);
