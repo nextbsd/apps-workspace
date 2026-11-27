@@ -202,7 +202,9 @@ FVMigrateFileViewerDefaults (void)
           [NSArray arrayWithObject:@"performMiniaturize:"], [NSArray arrayWithObject:@"m"]);
   FVMenu (menu, @"Help", [NSArray arrayWithObject:@"Workspace Help"],
           [NSArray arrayWithObject:@"help:"], [NSArray arrayWithObject:@"?"]);
-  [menu addItemWithTitle:@"Quit" action:@selector (terminate:) keyEquivalent:@"q"];
+  /* No Quit: Workspace is the session. The NeXT style's menu ends with
+     Log Out, Restart and Shut Down instead (the NextBSD theme), the Mac
+     style has them in the NextBSD menu, and Windows in Start. */
   [NSApp setMainMenu:menu];
   launched = YES;
   /* WindowServer tiles or stacks as the window mode in effect says. */
