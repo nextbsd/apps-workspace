@@ -26,6 +26,63 @@
 #import "FVBackgroundSettings.h"
 #import "FVDockSettings.h"
 
+/* The gap between a window and the menu it moves clear of. */
+static const CGFloat FVMenuGap = 8;
+
+void
+FVPlaceClearOfMenu (NSWindow *window)
+{
+  NSWindow *menuWindow = [[NSApp mainMenu] window];
+  NSScreen *screen = [window screen] ? [window screen] : [NSScreen mainScreen];
+  NSRect area = [screen visibleFrame];
+  NSRect frame = [window frame];
+  NSRect menu;
+  NSSize min = [window minSize];
+  BOOL resizable = ([window styleMask] & NSResizableWindowMask) != 0;
+  CGFloat right, below;
+
+  if (menuWindow == nil || ![menuWindow isVisible])
+    return;
+  menu = [menuWindow frame];
+  if (!NSIntersectsRect (frame, menu))
+    return;
+
+  /* To the menu's right, keeping the window's top where it was, inside
+     the usable area. Shrink a resizable window to fit if need be. */
+  right = NSMaxX (menu) + FVMenuGap;
+  if (right + NSWidth (frame) <= NSMaxX (area)
+      || (resizable && NSMaxX (area) - right >= min.width))
+    {
+      frame.origin.x = right;
+      if (NSMaxX (frame) > NSMaxX (area))
+        frame.size.width = NSMaxX (area) - right;
+    }
+  else
+    {
+      /* No room beside it: below the menu, shrinking a resizable window's
+         height to fit. */
+      below = NSMinY (menu) - FVMenuGap;
+      if (NSHeight (frame) > below - NSMinY (area))
+        {
+          if (!resizable || below - NSMinY (area) < min.height)
+            return;
+          frame.size.height = below - NSMinY (area);
+        }
+      frame.origin.y = below - NSHeight (frame);
+    }
+
+  /* Inside the usable area top to bottom: a resizable window shrinks to
+     it; one that can't keeps its top on screen. */
+  if (NSHeight (frame) > NSHeight (area) && resizable
+      && NSHeight (area) >= min.height)
+    frame.size.height = NSHeight (area);
+  if (NSMaxY (frame) > NSMaxY (area))
+    frame.origin.y = NSMaxY (area) - NSHeight (frame);
+  if (NSMinY (frame) < NSMinY (area))
+    frame.origin.y = NSMinY (area);
+  [window setFrame:frame display:NO];
+}
+
 static void
 FVMenu (NSMenu *root, NSString *title, NSArray *labels, NSArray *actions, NSArray *keys)
 {
@@ -344,6 +401,7 @@ FVMigrateFileViewerDefaults (void)
 {
   FVWindow *controller = [[FVWindow alloc] initWithPath:value];
   [windows addObject:controller];
+  FVPlaceClearOfMenu ([controller window]);
   [controller showWindow:self];
   RELEASE (controller);
 }
@@ -418,6 +476,10 @@ FVMigrateFileViewerDefaults (void)
                       backing:NSBackingStoreBuffered defer:NO];
       [preferencesPanel setTitle:@"Preferences"];
       [preferencesPanel setReleasedWhenClosed:NO];
+      /* Centred on the screen, then out from under the menu on a small
+         one; the panel keeps where the user moves it after that. */
+      [preferencesPanel center];
+      FVPlaceClearOfMenu (preferencesPanel);
       /* General: the file viewer's settings. Desktop: NextBSD's desktop
          settings, whose defaults come from the theme. Dock: the Dock's
          size, behavior and status extras. Background: the desktop

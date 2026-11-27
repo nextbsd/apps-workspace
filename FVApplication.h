@@ -23,6 +23,12 @@
 @class FVBackgroundSettings;
 @class FVDockSettings;
 
+/* Moves a window that would open under the application's menu clear of
+   it: to the menu's right, or below it, shrinking a resizable window to
+   fit when the screen is small. Leaves a window that doesn't touch the
+   menu where it is. */
+void FVPlaceClearOfMenu (NSWindow *window);
+
 @interface FVApplication : NSObject
 {
   NSMutableArray *windows;
